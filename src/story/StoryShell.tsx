@@ -253,6 +253,27 @@ function ItemDetail({ item, cartridge }: { item: InventoryItem; cartridge: Story
   </div>
 }
 
+function SystemDetail({ cartridge, engine, restart }: {
+  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; restart: () => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  return <div className="st-world-detail">
+    <DetailSection label={t(cartridge.locale, 'system')}><p>{t(cartridge.locale, 'segmentSaved', { n: engine.save.scene + 1 })}</p></DetailSection>
+    <DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: engine.save.location }, { label: t(cartridge.locale, 'system'), value: engine.save.time }]} />
+    <section className="st-world-restart">
+      <small>{t(cartridge.locale, 'startOver')}</small>
+      <p>{t(cartridge.locale, 'startOverDescription')}</p>
+      {engine.busy && <p className="st-world-restart__busy" role="status">{t(cartridge.locale, 'startOverBusy')}</p>}
+      {!confirming
+        ? <button className="st-world-restart__open" onClick={() => setConfirming(true)} disabled={engine.busy}>{t(cartridge.locale, 'startOver')}</button>
+        : <div className="st-world-restart__confirm" role="alert">
+          <p>{t(cartridge.locale, 'startOverWarning')}</p>
+          <div><button onClick={() => setConfirming(false)}>{t(cartridge.locale, 'startOverCancel')}</button><button className="is-danger" onClick={restart}>{t(cartridge.locale, 'startOverConfirm')}</button></div>
+        </div>}
+    </section>
+  </div>
+}
+
 function WorldDrawer({ active, setActive, cartridge, engine, close, player }: {
   active: DrawerId; setActive: (id: DrawerId) => void; cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; close: () => void; player: PlayerProfile
 }) {
@@ -281,7 +302,7 @@ function WorldDrawer({ active, setActive, cartridge, engine, close, player }: {
     {item && <ItemDetail item={item} cartridge={cartridge} />}
     {detail?.type === 'objective' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'currentObjective')}><p>{save.objective}</p></DetailSection><DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></DetailSection></div>}
     {relationship && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'journalDetail')}><p>{relationship.actor} · {relationship.axis}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'currentStatus'), value: t(cartridge.locale, relationship.delta > 0 ? 'warmer' : 'colder') }, { label: t(cartridge.locale, 'yourAction'), value: relationship.source }]} /></div>}
-    {detail?.type === 'system' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'system')}><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></div>}
+    {detail?.type === 'system' && <SystemDetail cartridge={cartridge} engine={engine} restart={() => { close(); engine.restartWorld() }} />}
   </section></div>
 }
 

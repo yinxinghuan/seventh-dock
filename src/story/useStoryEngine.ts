@@ -265,5 +265,21 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
       }
     })
   }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, retryImage, prepareInventoryImages, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
+  const restartWorld = useCallback(() => {
+    if (busy) return
+    imageAttempt.current = `restart:${Date.now()}`
+    setError(''); setFailedAction(null); setPendingAction(''); setProgress(null)
+    const fresh = createInitialSave(cartridge)
+    const archive = archiveRef.current
+    const nextArchive: StoryArchive = { ...archive, version: 1, worlds: { ...archive.worlds, [cartridge.id]: fresh } }
+    archiveRef.current = nextArchive
+    saveRef.current = fresh
+    setSave(fresh)
+    persist(nextArchive)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('chat_id')
+    window.history.replaceState({}, '', url)
+    setMode(url.searchParams.get('story_mode') === 'demo' ? 'demo' : 'aigram')
+  }, [busy, cartridge, persist])
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, retryImage, prepareInventoryImages, restartWorld, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
 }
