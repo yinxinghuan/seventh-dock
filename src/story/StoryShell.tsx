@@ -31,7 +31,7 @@ function Entry({ cartridge, onEnter, onSelect, mode, setMode, hasSave, remoteAva
     <p className="st-entry__kicker">{t(cartridge.locale, 'kicker')}</p>
     <h1>{cartridge.copy.title}</h1>
     <p className="st-entry__subtitle">{cartridge.copy.subtitle}</p>
-    <figure className="st-entry__scene"><img src={cartridge.coverImage} alt="" draggable={false} /><span aria-hidden="true" /></figure>
+    <figure className="st-entry__scene"><img src={cartridge.entryImage ?? cartridge.coverImage} alt="" draggable={false} /></figure>
     <p className="st-entry__promise">{cartridge.copy.promise}</p>
     <button className="st-primary" onPointerDown={onEnter}>{hasSave ? cartridge.copy.continue : cartridge.copy.enter}<Icon name="arrow" /></button>
     {cartridges.length > 1 && <div className="st-entry__cartridges" aria-label={t(cartridge.locale, 'chooseWorld')}>

@@ -1,11 +1,13 @@
 import type { StoryCartridge } from '../types'
 
 const coverImage = new URL('../img/worlds/seventh-dock.webp', import.meta.url).href
+const entryImage = new URL('../img/worlds/seventh-dock-entry.webp', import.meta.url).href
 
 const shared = {
   schemaVersion: 1 as const,
   id: 'seventh-dock',
   coverImage,
+  entryImage,
   theme: { outer: '#071113', surface: '#0c1a1d', paper: '#d7d8cb', ink: '#1e2929', muted: '#718184', accent: '#3d7c82', danger: '#b6603c', gold: '#d3a653', material: 'harbor' as const },
   itemImageDirection: 'archival harbor field-guide object study, weathered brass, salt-stained canvas and dark teal enamel, soft rust-colored lantern light, tactile editorial realism',
   audioTheme: {

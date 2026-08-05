@@ -64,6 +64,7 @@ export interface StoryCartridge {
   id: CartridgeId
   locale: Locale
   coverImage: string
+  entryImage?: string
   copy: { title: string; subtitle: string; promise: string; enter: string; continue: string; customAction: string }
   theme: ThemeTokens
   audioTheme: StoryAudioTheme
