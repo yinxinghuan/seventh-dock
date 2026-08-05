@@ -29,7 +29,7 @@
 
 `useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v4 保存地点、时间、目标、数值、剧情块、地图、物品、关系、语言和远程 chatId。
 
-协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/party_change/session_end 白名单命令，并兼容 AI 偶发缺少角色左方括号的台词格式。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。Aigram Adapter 每轮携带权威状态与最近 20 个非图片剧情块；远程 Adapter 过滤 thinking。两者都只在完整回合确认后提交。
+协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/party_change/session_end 白名单命令，并兼容弯引号/全角 choice 分隔符、正文末尾带提示的编号/项目符号行动，以及 AI 偶发缺少角色左方括号的台词格式。恢复的自然语言行动从正文去重并写入真实按钮；没有可信选择时保持空数组，不再由 Reducer 补通用继续。若 `session_end` 与具体行动同时出现，Composer 保留具体行动并提交准确按钮文字；只有没有行动的真正章节节点显示单一继续。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。Aigram Adapter 每轮携带权威状态与最近 20 个非图片剧情块；远程 Adapter 过滤 thinking，并在每轮追加精确三选项格式合同。两者都只在完整回合确认后提交。
 
 旧 Mock 固定兜底句会在载入时连同前一条无效行动一起移除，scene 计数回退并恢复“继续”选项。AI/远程失败只保留瞬时失败行动，显示可重试错误，不修改存档。
 

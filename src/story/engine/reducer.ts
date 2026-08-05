@@ -168,6 +168,5 @@ export function applyParsedScene(
     ...effects,
     ...(imagePrompt ? [createImageBlock(`image-${next.scene}`, next.location, imagePrompt, 'queued')] : []),
   ]
-  if (!next.sessionEnded && next.choices.length === 0) next.choices = [{ id: `${next.scene}-continue`, label: cartridge.copy.continue }]
   return next
 }

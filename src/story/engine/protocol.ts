@@ -32,9 +32,36 @@ function number(value: string | undefined, fallback = 0): number {
 
 function parseChoices(source: string): string[] {
   const body = source.replace(/^\s*choices\s*:/i, '').replace(/\]\s*$/, '').trim()
-  const quoted = [...body.matchAll(/["']([^"']+)["']/g)].map((match) => match[1].trim()).filter(Boolean)
+  const quoted = [...body.matchAll(/["'“”‘’]([^"'“”‘’]+)["'“”‘’]/g)].map((match) => match[1].trim()).filter(Boolean)
   if (quoted.length) return quoted
-  return body.replace(/^\[/, '').replace(/\]$/, '').split('|').map((choice) => choice.trim()).filter(Boolean)
+  return body.replace(/^\[/, '').replace(/\]$/, '').split(/[|｜]/).map((choice) => choice.replace(/^["'“”‘’]|["'“”‘’]$/g, '').trim()).filter(Boolean)
+}
+
+function extractNaturalChoices(source: string): { prose: string; choices: string[] } {
+  const lines = source.split('\n')
+  const nonEmptyIndexes = lines.map((line, index) => line.trim() ? index : -1).filter((index) => index >= 0)
+  if (!nonEmptyIndexes.length) return { prose: source, choices: [] }
+  const optionLine = /^\s*(?:(?:选项|选择|行动)\s*[一二三四五\dA-Ea-e]+\s*[：:.、)]|(?:\d{1,2}|[A-Ea-e]|[一二三四五])\s*[.、:：)]|[①②③④⑤]|[-*•])\s*(.+?)\s*$/
+  const choices: string[] = []
+  const choiceIndexes: number[] = []
+  let cursor = nonEmptyIndexes.at(-1)!
+  while (cursor >= 0 && choices.length < 5) {
+    if (!lines[cursor].trim()) { cursor -= 1; continue }
+    const match = lines[cursor].match(optionLine)
+    if (!match) break
+    const label = match[1].replace(/[。.;；]+$/, '').trim()
+    if (label.length < 2 || label.length > 96) break
+    choices.unshift(label)
+    choiceIndexes.unshift(cursor)
+    cursor -= 1
+  }
+  if (choices.length < 2 || choices.length > 5 || new Set(choices).size !== choices.length) return { prose: source, choices: [] }
+  const previous = lines.slice(0, choiceIndexes[0]).reverse().find((line) => line.trim())?.trim() ?? ''
+  const hasChoiceCue = /(?:你可以|可选择|选项|下一步|接下来|决定|打算|choose|choice|options?|next|you can|what (?:will|do) you)/i.test(previous)
+  const beginsLikeAction = /^(?:先|去|前往|沿|循|跟随|返回|留下|等待|观察|检查|调查|搜索|询问|告诉|帮助|拒绝|接受|进入|使用|带|把|让|与|继续|尝试|绕|登|走|停|休息|follow|ask|return|stay|wait|watch|inspect|investigate|search|tell|help|refuse|accept|enter|use|take|continue|try|climb|walk|go|leave)/i
+  if (!hasChoiceCue && (choices.length !== 3 || !choices.every((choice) => beginsLikeAction.test(choice)))) return { prose: source, choices: [] }
+  choiceIndexes.forEach((index) => { lines[index] = '' })
+  return { prose: lines.join('\n'), choices }
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -119,6 +146,9 @@ export function parseStoryProtocol(raw: string, locale: Locale = 'zh'): ParsedSc
   let prose = raw
   for (const span of [...spans].reverse()) prose = prose.slice(0, span.start) + '\n' + prose.slice(span.end)
   prose = prose.replace(/\[[a-z_]+\s*:[^\]\n]*\]/gi, '\n')
+  const hasStructuredChoices = spans.some((span) => span.command.type === 'choices')
+  const natural = hasStructuredChoices ? { prose, choices: [] } : extractNaturalChoices(prose)
+  prose = natural.prose
 
   const blocks: StoryBlock[] = []
   const dialogue = /^\[([^\]]+)]\s*\[([^\]]+)](?:\s*\[([^\]]+)])?\s*:\s*["“]?(.*?)["”]?\s*$/
@@ -132,5 +162,9 @@ export function parseStoryProtocol(raw: string, locale: Locale = 'zh'): ParsedSc
       blocks.push({ id: uid('line', index, line), kind: 'narration', text: line })
     }
   })
-  return { blocks, commands: spans.map((span) => span.command), raw }
+  return {
+    blocks,
+    commands: [...spans.map((span) => span.command), ...(natural.choices.length ? [{ type: 'choices' as const, choices: natural.choices }] : [])],
+    raw,
+  }
 }

@@ -17,8 +17,8 @@ export const remoteAdapter: StoryAdapter = {
     const chatId = context.save.remoteChatId || new URLSearchParams(window.location.search).get('chat_id')
     if (!chatId) throw new Error(t(context.locale, 'remoteMissing'))
     const languageInstruction = context.locale === 'en'
-      ? '\n\n[LANGUAGE: Reply in English. Keep every protocol command tag and its syntax intact.]'
-      : '\n\n[语言要求：请用简体中文回复，并保持所有协议命令标签及语法不变。]'
+      ? '\n\n[LANGUAGE AND FORMAT: Reply in English. Keep every protocol command tag and its syntax intact. Unless this is a genuine chapter checkpoint, end with exactly three actions in this exact machine-readable form: [choices: "Action one"|"Action two"|"Action three"]. Button actions must match the decisions described in the prose.]'
+      : '\n\n[语言与格式要求：请用简体中文回复，并保持所有协议命令标签及语法不变。除非这是真正的章节节点，否则结尾必须用这一机器可读格式给出恰好三个行动：[choices: "行动一"|"行动二"|"行动三"]。按钮行动必须与正文描述的决定一致。]'
     const response = await fetch(`${endpoint}/api/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chatId, userMessage: `${action}${languageInstruction}`, streaming: false }),

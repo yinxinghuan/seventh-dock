@@ -225,7 +225,6 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
 
   const retryAction = useCallback(() => { if (failedAction) void act(failedAction.action, failedAction.locale) }, [act, failedAction])
   const useAigramFallback = useCallback(() => { setMode('aigram'); setError('') }, [])
-  const continueAfterSummary = useCallback(() => commit((current) => ({ ...current, locale: cartridge.locale, sessionEnded: false, choices: [{ id: `continue-${current.scene}`, label: cartridge.copy.continue }] })), [cartridge, commit])
   const retryImage = useCallback((blockId: string) => { imageAttempt.current = ''; commit((current) => updateImageBlock(current, blockId, { status: 'queued' })) }, [commit])
   const prepareInventoryImages = useCallback(() => {
     imageAttempt.current = ''
@@ -241,5 +240,5 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
       }
     })
   }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, prepareInventoryImages, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, retryImage, prepareInventoryImages, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
 }

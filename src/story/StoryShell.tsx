@@ -174,19 +174,21 @@ function Composer({ cartridge, engine, onAct }: { cartridge: StoryCartridge; eng
     if (!value || engine.busy) return
     onAct(value); setCustom('')
   }
-  const choices = engine.save.sessionEnded ? [{ id: `continue-${engine.save.scene}`, label: cartridge.copy.continue }] : engine.save.choices
+  const hasStoryChoices = engine.save.choices.length > 0
+  const closedCheckpoint = engine.save.sessionEnded && !hasStoryChoices
+  const choices = hasStoryChoices ? engine.save.choices : closedCheckpoint ? [{ id: `continue-${engine.save.scene}`, label: cartridge.copy.continue }] : []
   return <section className="st-composer" aria-label={t(cartridge.locale, 'reply')}>
     <div className="st-quick-replies" ref={repliesRef}>
       {choices.map((choice, index) => {
         const visualUnits = Array.from(choice.label).reduce((total, character) => total + (/[^\u0000-\u00ff]/.test(character) ? 2 : 1), 0)
         const adaptiveWidth = `${Math.min(310, Math.max(148, Math.round(132 + visualUnits * 2.5)))}px`
-        return <button key={choice.id} style={{ '--st-choice-width': adaptiveWidth } as React.CSSProperties} disabled={engine.busy} onClick={() => engine.save.sessionEnded ? engine.continueAfterSummary() : onAct(choice.label)}><small>{String(index + 1).padStart(2, '0')}</small><span>{choice.label}</span><Icon name="arrow" /></button>
+        return <button key={choice.id} style={{ '--st-choice-width': adaptiveWidth } as React.CSSProperties} disabled={engine.busy} onClick={() => onAct(choice.label)}><small>{String(index + 1).padStart(2, '0')}</small><span>{choice.label}</span><Icon name="arrow" /></button>
       })}
     </div>
     <form onSubmit={(event) => { event.preventDefault(); submit() }}>
       <Icon name="pen" />
-      <input aria-label={t(cartridge.locale, 'customAction')} value={custom} onChange={(event) => setCustom(event.target.value)} placeholder={cartridge.copy.customAction} disabled={engine.busy || engine.save.sessionEnded} maxLength={160} />
-      <button type="button" onPointerDown={submit} disabled={!custom.trim() || engine.busy || engine.save.sessionEnded} aria-label={t(cartridge.locale, 'sendAction')}><Icon name="arrow" /></button>
+      <input aria-label={t(cartridge.locale, 'customAction')} value={custom} onChange={(event) => setCustom(event.target.value)} placeholder={cartridge.copy.customAction} disabled={engine.busy || closedCheckpoint} maxLength={160} />
+      <button type="button" onPointerDown={submit} disabled={!custom.trim() || engine.busy || closedCheckpoint} aria-label={t(cartridge.locale, 'sendAction')}><Icon name="arrow" /></button>
     </form>
   </section>
 }
