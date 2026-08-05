@@ -11,8 +11,8 @@ export function createInitialSave(cartridge: StoryCartridge, remoteChatId?: stri
     location: cartridge.opening.location, time: cartridge.opening.time, objective: cartridge.opening.objective,
     stats: Object.fromEntries(cartridge.statDefinitions.map((stat) => [stat.id, stat.initial])),
     blocks: [...cartridge.opening.blocks, createImageBlock('image-0', cartridge.opening.location, cartridge.opening.imagePrompt, 'idle')],
-    choices: cartridge.opening.choices, map: cartridge.initialMap,
-    inventory: cartridge.initialInventory, relationships: [],
+    choices: cartridge.opening.choices, map: cartridge.initialMap.map((node) => ({ ...node, facts: node.facts ? [...node.facts] : undefined })),
+    inventory: cartridge.initialInventory.map((item) => ({ ...item, metrics: item.metrics?.map((metric) => ({ ...metric })), imageStatus: item.imageUrl ? 'ready' : 'idle' })), relationships: [],
     sessionEnded: false,
   }
 }
@@ -30,6 +30,15 @@ export function updateImageBlock(save: StorySave, blockId: string, patch: { stat
   }
 }
 
+export function updateInventoryItemImage(save: StorySave, itemId: string, patch: { status?: ImageBlockStatus; url?: string }): StorySave {
+  return {
+    ...save,
+    inventory: save.inventory.map((item) => item.id === itemId
+      ? { ...item, imageStatus: patch.status ?? item.imageStatus, imageUrl: patch.url ?? item.imageUrl }
+      : item),
+  }
+}
+
 export function localizeKnownState(save: StorySave, from: StoryCartridge, to: StoryCartridge): StorySave {
   if (from.locale === to.locale) return save
   const sourceNodeByLabel = new Map(from.initialMap.map((node) => [node.label, node.id]))
@@ -37,7 +46,10 @@ export function localizeKnownState(save: StorySave, from: StoryCartridge, to: St
   const map = save.map.map((node) => {
     const target = targetNodeById.get(node.id)
     const connectedId = node.connectedTo ? sourceNodeByLabel.get(node.connectedTo) : undefined
-    return target ? { ...node, label: target.label, connectedTo: connectedId ? targetNodeById.get(connectedId)?.label : node.connectedTo } : node
+    return target ? {
+      ...node, label: target.label, connectedTo: connectedId ? targetNodeById.get(connectedId)?.label : node.connectedTo,
+      detail: target.detail ?? node.detail, lore: target.lore ?? node.lore, facts: target.facts ?? node.facts,
+    } : node
   })
   const locationId = sourceNodeByLabel.get(save.location)
   const openingLocation = save.location === from.opening.location ? to.opening.location : undefined
@@ -49,7 +61,13 @@ export function localizeKnownState(save: StorySave, from: StoryCartridge, to: St
     time: save.time === from.opening.time ? to.opening.time : save.time,
     objective: save.objective === from.opening.objective ? to.opening.objective : save.objective,
     map,
-    inventory: save.inventory.map((item) => inventoryById.has(item.id) ? { ...item, label: inventoryById.get(item.id)!.label } : item),
+    inventory: save.inventory.map((item) => {
+      const target = inventoryById.get(item.id)
+      return target ? {
+        ...item, label: target.label, detail: target.detail ?? item.detail, effect: target.effect ?? item.effect,
+        lore: target.lore ?? item.lore, metrics: target.metrics ?? item.metrics, imagePrompt: target.imagePrompt ?? item.imagePrompt,
+      } : item
+    }),
   }
 }
 
@@ -82,8 +100,10 @@ export function applyParsedScene(
       if (!definition) return
       const current = next.stats[command.id] ?? definition.initial
       const raw = Number(command.value)
-      const value = command.operation === 'add' ? current + raw : command.operation === 'remove' ? current - raw : raw
-      next.stats[command.id] = clamp(value, definition.min, definition.max)
+      const requested = command.operation === 'add' ? current + raw : command.operation === 'remove' ? current - raw : raw
+      const maxDelta = definition.maxDelta == null ? Number.POSITIVE_INFINITY : Math.max(0, definition.maxDelta)
+      const boundedDelta = clamp(requested - current, -maxDelta, maxDelta)
+      next.stats[command.id] = clamp(current + boundedDelta, definition.min, definition.max)
       const delta = next.stats[command.id] - current
       effects.push(changeBlock(effectId, `${definition.label} ${delta > 0 ? '+' : ''}${delta}`, { stat: command.id, delta }))
     }
@@ -91,20 +111,40 @@ export function applyParsedScene(
       effects.push({ id: effectId, kind: 'check', text: `${command.skill} · ${command.result === 'success' ? t(cartridge.locale, 'checkSuccess') : t(cartridge.locale, 'checkFailure')}`, data: { dc: command.dc, roll: command.roll, modifier: command.modifier, total: command.total } })
     }
     if (command.type === 'state' && command.value) next.objective = command.value
+    if (command.type === 'clock' && command.value) next.time = command.value
     if (command.type === 'map_update') {
       next.map.forEach((node) => { node.current = false })
       const existing = next.map.find((node) => node.label === command.location || node.id === command.location)
-      if (existing) existing.current = true
-      else next.map.push({ id: `map-${next.scene}-${index}`, label: command.location, connectedTo: command.connectedTo, current: true })
+      if (existing) {
+        existing.current = true
+        if (command.connectedTo) existing.connectedTo = command.connectedTo
+        if (command.detail) existing.detail = command.detail
+        if (command.lore) existing.lore = command.lore
+        if (command.facts) existing.facts = command.facts
+      } else next.map.push({
+        id: `map-${next.scene}-${index}`, label: command.location, connectedTo: command.connectedTo, current: true,
+        detail: command.detail, lore: command.lore, facts: command.facts,
+      })
       next.location = command.location
       effects.push({ id: effectId, kind: 'event', text: t(cartridge.locale, 'arrived', { name: command.location }) })
     }
     if (command.type === 'inventory') {
       const existing = next.inventory.find((item) => item.label === command.item || item.id === command.item)
-      if (existing) existing.count = Math.max(0, existing.count + (command.action === 'add' ? command.count : -command.count))
-      else if (command.action === 'add') next.inventory.push({ id: `item-${next.scene}-${index}`, label: command.item, count: command.count })
+      if (existing) {
+        existing.count = Math.max(0, existing.count + (command.action === 'add' ? command.count : -command.count))
+        if (command.rarity) existing.rarity = command.rarity
+        if (command.detail) existing.detail = command.detail
+        if (command.effect) existing.effect = command.effect
+        if (command.lore) existing.lore = command.lore
+        if (command.metrics) existing.metrics = command.metrics
+        if (command.imagePrompt) existing.imagePrompt = command.imagePrompt
+      } else if (command.action === 'add') next.inventory.push({
+        id: `item-${next.scene}-${index}`, label: command.item, count: command.count, rarity: command.rarity,
+        detail: command.detail, effect: command.effect, lore: command.lore, metrics: command.metrics, imagePrompt: command.imagePrompt,
+        imageStatus: 'idle',
+      })
       next.inventory = next.inventory.filter((item) => item.count > 0)
-      effects.push(changeBlock(effectId, `${command.action === 'add' ? t(cartridge.locale, 'gained') : t(cartridge.locale, 'lost')} ${command.item} ×${command.count}`))
+      effects.push(changeBlock(effectId, `${command.action === 'add' ? t(cartridge.locale, 'gained') : t(cartridge.locale, 'lost')} ${command.item} ×${command.count}`, command.rarity ? { rarity: command.rarity } : undefined))
     }
     if (command.type === 'reputation') {
       const delta = /betray|hostile|distrust|拒绝|背叛/i.test(command.action) ? -1 : 1

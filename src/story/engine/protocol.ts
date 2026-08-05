@@ -1,8 +1,8 @@
 import { t } from '../i18n'
-import type { Locale, ParsedCommand, ParsedScene, StoryBlock } from '../types'
+import type { EntityMetric, Locale, ParsedCommand, ParsedScene, StoryBlock } from '../types'
 
 const commandNames = new Set([
-  'choices', 'widget', 'skill_check', 'state', 'map_update', 'inventory',
+  'choices', 'widget', 'skill_check', 'state', 'clock', 'map_update', 'inventory',
   'reputation', 'party_change', 'session_end',
 ])
 
@@ -37,6 +37,19 @@ function parseChoices(source: string): string[] {
   return body.replace(/^\[/, '').replace(/\]$/, '').split('|').map((choice) => choice.trim()).filter(Boolean)
 }
 
+function parseList(value: string | undefined): string[] | undefined {
+  const items = value?.split('|').map((item) => item.trim()).filter(Boolean)
+  return items?.length ? items : undefined
+}
+
+function parseMetrics(value: string | undefined): EntityMetric[] | undefined {
+  const metrics = parseList(value)?.map((entry) => {
+    const divider = entry.search(/[:=]/)
+    return divider > 0 ? { label: entry.slice(0, divider).trim(), value: entry.slice(divider + 1).trim() } : null
+  }).filter((entry): entry is EntityMetric => Boolean(entry?.label && entry.value))
+  return metrics?.length ? metrics : undefined
+}
+
 function parseCommand(name: string, source: string, locale: Locale): ParsedCommand | null {
   const data = attrs(source)
   switch (name) {
@@ -51,8 +64,19 @@ function parseCommand(name: string, source: string, locale: Locale): ParsedComma
       roll: number(data.rolls ?? data.roll), modifier: number(data.modifier), total: number(data.total), result: data.result ?? 'unknown',
     }
     case 'state': return { type: 'state', value: data.value ?? source.replace(/^\s*state\s*:/i, '').trim() }
-    case 'map_update': return data.new_location || data.location ? { type: 'map_update', location: data.new_location ?? data.location, connectedTo: data.connected_to } : null
-    case 'inventory': return data.item ? { type: 'inventory', action: data.action === 'remove' ? 'remove' : 'add', item: data.item, count: Math.max(1, number(data.count, 1)) } : null
+    case 'clock': return { type: 'clock', value: data.value ?? source.replace(/^\s*clock\s*:/i, '').trim() }
+    case 'map_update': return data.new_location || data.location ? {
+      type: 'map_update', location: data.new_location ?? data.location, connectedTo: data.connected_to,
+      detail: data.detail, lore: data.lore, facts: parseList(data.facts),
+    } : null
+    case 'inventory': {
+      const rarity = data.rarity === 'rare' || data.rarity === 'legendary' ? data.rarity : data.rarity === 'common' ? 'common' : undefined
+      return data.item ? {
+        type: 'inventory', action: data.action === 'remove' ? 'remove' : 'add', item: data.item,
+        count: Math.max(1, number(data.count, 1)), rarity, detail: data.detail, effect: data.effect,
+        lore: data.lore, metrics: parseMetrics(data.metrics), imagePrompt: data.image_prompt,
+      } : null
+    }
     case 'reputation': return data.npc ? { type: 'reputation', npc: data.npc, action: data.action ?? 'changed' } : null
     case 'party_change': return data.character ? { type: 'party_change', character: data.character, change: data.change === 'remove' ? 'remove' : 'add' } : null
     case 'session_end': return { type: 'session_end', reason: data.reason ?? t(locale, 'chapterPaused') }
@@ -99,8 +123,9 @@ export function parseStoryProtocol(raw: string, locale: Locale = 'zh'): ParsedSc
   const blocks: StoryBlock[] = []
   const dialogue = /^\[([^\]]+)]\s*\[([^\]]+)](?:\s*\[([^\]]+)])?\s*:\s*["“]?(.*?)["”]?\s*$/
   const lenientDialogue = /^([^\[\]:]{1,40})\s+\[([^\]]+)](?:\s*\[([^\]]+)])?\s*:\s*["“]?(.*?)["”]?\s*$/
+  const bareChannelDialogue = /^\[([^\]]+)]\s+([^:\s]+)\s+([^:\s]+)\s*:\s*["“]?(.*?)["”]?\s*$/
   prose.split(/\n+/).map((line) => line.trim()).filter(Boolean).forEach((line, index) => {
-    const match = line.match(dialogue) ?? line.match(lenientDialogue)
+    const match = line.match(dialogue) ?? line.match(lenientDialogue) ?? line.match(bareChannelDialogue)
     if (match) {
       blocks.push({ id: uid('line', index, line), kind: 'dialogue', speaker: match[1], tone: match[3] ?? match[2], text: match[4].replace(/["”]$/, '') })
     } else {

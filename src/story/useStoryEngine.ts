@@ -5,10 +5,10 @@ import { aigramAdapter } from './adapters/aigram'
 import { mockAdapter } from './adapters/mock'
 import { remoteAdapter } from './adapters/remote'
 import { resolveCartridge } from './cartridges'
-import { applyParsedScene, createImageBlock, createInitialSave, localizeKnownState, updateImageBlock } from './engine/reducer'
+import { applyParsedScene, createImageBlock, createInitialSave, localizeKnownState, updateImageBlock, updateInventoryItemImage } from './engine/reducer'
 import { parseStoryProtocol } from './engine/protocol'
 import { t } from './i18n'
-import type { AdapterProgress, Locale, StoryArchive, StoryCartridge, StoryMode, StorySave } from './types'
+import type { AdapterProgress, InventoryItem, Locale, StoryArchive, StoryCartridge, StoryMode, StorySave } from './types'
 
 type LegacyStorySave = Omit<StorySave, 'version' | 'locale'> & {
   version?: 1 | 2 | 3 | 4
@@ -38,7 +38,14 @@ function repairMockLoop(candidate: LegacyStorySave, cartridge: StoryCartridge): 
   })
   if (fallbackIndexes.size === 0) return candidate
   const blocks = candidate.blocks.filter((block, index) => !fallbackIndexes.has(index) && !(block.kind === 'event' && block.id.startsWith('action-') && fallbackIndexes.has(index + 1)))
-  return { ...candidate, blocks, scene: Math.max(0, candidate.scene - fallbackIndexes.size), choices: [{ id: `recovered-${candidate.scene}`, label: cartridge.copy.continue }], sessionEnded: false, lastActionId: undefined }
+  return {
+    ...candidate,
+    blocks,
+    scene: Math.max(0, candidate.scene - fallbackIndexes.size),
+    choices: [{ id: `recovered-${candidate.scene}`, label: cartridge.copy.continue }],
+    sessionEnded: false,
+    lastActionId: undefined,
+  }
 }
 
 function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge: StoryCartridge, incomingChatId?: string): StorySave {
@@ -51,7 +58,31 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
     const status = repaired.imageStatus === 'generating' ? 'queued' : repaired.imageStatus || (repaired.entered ? 'queued' : 'idle')
     blocks = [...blocks, createImageBlock(`image-${repaired.scene}`, repaired.location, prompt, status, repaired.imageUrl)]
   }
-  return { ...repaired, version: 4, locale: repaired.locale ?? cartridge.locale, remoteChatId: incomingChatId || repaired.remoteChatId, blocks } as StorySave
+  const initialItems = new Map(cartridge.initialInventory.map((item) => [item.id, item]))
+  const inventory = (repaired.inventory ?? cartridge.initialInventory).map((item) => {
+    const definition = initialItems.get(item.id)
+    return {
+      ...definition, ...item,
+      detail: item.detail ?? definition?.detail, effect: item.effect ?? definition?.effect, lore: item.lore ?? definition?.lore,
+      metrics: item.metrics ?? definition?.metrics, imagePrompt: item.imagePrompt ?? definition?.imagePrompt,
+      imageStatus: item.imageStatus === 'generating' ? 'queued' : item.imageStatus ?? (item.imageUrl ? 'ready' : 'idle'),
+    }
+  })
+  const initialPlaces = new Map(cartridge.initialMap.map((node) => [node.id, node]))
+  const map = (repaired.map ?? cartridge.initialMap).map((node) => {
+    const definition = initialPlaces.get(node.id)
+    return {
+      ...definition, ...node,
+      detail: node.detail ?? definition?.detail, lore: node.lore ?? definition?.lore, facts: node.facts ?? definition?.facts,
+    }
+  })
+  return { ...repaired, version: 4, locale: repaired.locale ?? cartridge.locale, remoteChatId: incomingChatId || repaired.remoteChatId, blocks, inventory, map } as StorySave
+}
+
+function inventoryImagePrompt(item: InventoryItem, cartridge: StoryCartridge): string {
+  if (item.imagePrompt) return item.imagePrompt
+  const direction = cartridge.itemImageDirection ?? 'elegant in-world artifact study with tactile natural materials and restrained directional light'
+  return `A single inventory object from ${cartridge.copy.title}: ${item.label}. ${item.detail ?? ''} ${item.effect ?? ''} ${item.lore ?? ''}. ${direction}. Object only, centered still life, square composition, no people, no hands, no text, no letters, no labels, no logo, no UI.`
 }
 
 export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode, incomingChatId?: string, imageIdentity: { ready: boolean; refUrl?: string } = { ready: true }) {
@@ -65,6 +96,9 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const [failedAction, setFailedAction] = useState<{ action: string; locale: Locale } | null>(null)
   const seeded = useRef(false)
   const imageAttempt = useRef('')
+  const imageBusy = useRef(false)
+  const lastImageCallAt = useRef(0)
+  const [imageWorkerTick, setImageWorkerTick] = useState(0)
   const saveRef = useRef(save)
   const archiveRef = useRef<StoryArchive>({ version: 1, worlds: {} })
   const { generate } = useGenImage()
@@ -106,30 +140,50 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
     })
   }, [cartridge.id, persist])
 
-  const queuedImage = [...save.blocks].reverse().find((block) => block.kind === 'image' && block.data?.status === 'queued')
+  const queuedSceneImage = save.blocks.find((block) => block.kind === 'image' && block.data?.status === 'queued')
+  const queuedItemImage = save.inventory.find((item) => item.imageStatus === 'queued')
+  const queuedImageKey = queuedSceneImage ? `scene:${queuedSceneImage.id}` : queuedItemImage ? `item:${queuedItemImage.id}` : ''
 
   useEffect(() => {
-    const prompt = String(queuedImage?.data?.prompt ?? '')
-    if (!save.entered || !queuedImage || !prompt || !imageIdentity.ready || imageAttempt.current === queuedImage.id) return
-    imageAttempt.current = queuedImage.id
-    const key = queuedImage.id
-    commit((current) => updateImageBlock(current, key, { status: 'generating' }))
+    if (!save.entered || !queuedImageKey || imageBusy.current || imageAttempt.current === queuedImageKey) return
+    const isScene = Boolean(queuedSceneImage)
+    if (isScene && !imageIdentity.ready) return
+    const prompt = queuedSceneImage ? String(queuedSceneImage.data?.prompt ?? '') : queuedItemImage ? inventoryImagePrompt(queuedItemImage, cartridge) : ''
+    if (!prompt) return
+    imageBusy.current = true
+    imageAttempt.current = queuedImageKey
+    const entityId = queuedSceneImage?.id ?? queuedItemImage!.id
+    commit((current) => isScene
+      ? updateImageBlock(current, entityId, { status: 'generating' })
+      : updateInventoryItemImage(current, entityId, { status: 'generating' }))
     ;(async () => {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const identityPrompt = imageIdentity.refUrl
-            ? `${prompt}. Use the person in the reference image as the player protagonist in this scene. Preserve their recognizable facial features and overall appearance, while adapting clothing, pose, lighting, and camera distance naturally to this fictional world. Keep the environment and story event visually dominant; do not turn the scene into a selfie or portrait.`
-            : prompt
-          const url = await generate({ prompt: identityPrompt, ref_url: imageIdentity.refUrl })
-          if (imageAttempt.current === key) commit((current) => updateImageBlock(current, key, { status: 'ready', url }))
-          return
-        } catch {
-          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 3000 : 8000))
+      try {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const gap = Math.max(0, 3000 - (Date.now() - lastImageCallAt.current))
+            if (gap) await new Promise((resolve) => window.setTimeout(resolve, gap))
+            const identityPrompt = isScene && imageIdentity.refUrl
+              ? `${prompt}. Use the person in the reference image as the player protagonist in this scene. Preserve their recognizable facial features and overall appearance, while adapting clothing, pose, lighting, and camera distance naturally to this fictional world. Keep the environment and story event visually dominant; do not turn the scene into a selfie or portrait.`
+              : prompt
+            lastImageCallAt.current = Date.now()
+            const url = await generate(isScene ? { prompt: identityPrompt, ref_url: imageIdentity.refUrl } : { prompt: identityPrompt })
+            if (imageAttempt.current === queuedImageKey) commit((current) => isScene
+              ? updateImageBlock(current, entityId, { status: 'ready', url })
+              : updateInventoryItemImage(current, entityId, { status: 'ready', url }))
+            return
+          } catch {
+            if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 3000 : 8000))
+          }
         }
+        if (imageAttempt.current === queuedImageKey) commit((current) => isScene
+          ? updateImageBlock(current, entityId, { status: 'failed' })
+          : updateInventoryItemImage(current, entityId, { status: 'failed' }))
+      } finally {
+        imageBusy.current = false
+        setImageWorkerTick((tick) => tick + 1)
       }
-      if (imageAttempt.current === key) commit((current) => updateImageBlock(current, key, { status: 'failed' }))
     })()
-  }, [commit, generate, imageIdentity.ready, imageIdentity.refUrl, queuedImage, save.entered])
+  }, [cartridge, commit, generate, imageIdentity.ready, imageIdentity.refUrl, imageWorkerTick, queuedImageKey, queuedItemImage, queuedSceneImage, save.entered])
 
   const enter = useCallback(() => commit((current) => {
     const openingImage = current.blocks.find((block) => block.kind === 'image')
@@ -162,5 +216,9 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const useAigramFallback = useCallback(() => { setMode('aigram'); setError('') }, [])
   const continueAfterSummary = useCallback(() => commit((current) => ({ ...current, locale: cartridge.locale, sessionEnded: false, choices: [{ id: `continue-${current.scene}`, label: cartridge.copy.continue }] })), [cartridge, commit])
   const retryImage = useCallback((blockId: string) => { imageAttempt.current = ''; commit((current) => updateImageBlock(current, blockId, { status: 'queued' })) }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
+  const requestItemImage = useCallback((itemId: string) => {
+    imageAttempt.current = ''
+    commit((current) => updateInventoryItemImage(current, itemId, { status: 'queued' }))
+  }, [commit])
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, requestItemImage, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
 }

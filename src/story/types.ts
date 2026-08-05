@@ -5,7 +5,16 @@ export type Locale = 'zh' | 'en'
 
 export interface ThemeTokens {
   outer: string; surface: string; paper: string; ink: string; muted: string; accent: string; danger: string; gold: string
-  material: 'harbor' | 'apartment'
+  material: 'harbor' | 'apartment' | 'wayfarer'
+}
+
+export interface StoryAudioTheme {
+  material: 'harbor' | 'apartment' | 'wayfarer'
+  bpm: number
+  rootHz: number
+  scale: number[]
+  levels: { music: number; ambient: number; sfx: number; master: number }
+  tension: Array<{ statId: string; direction: 'high' | 'low'; weight: number }>
 }
 
 export interface StatDefinition {
@@ -18,23 +27,37 @@ export interface StatDefinition {
   display?: 'bar' | 'number'
   warningAt?: number
   dangerAt?: number
-}
-export interface StoryAudioTheme {
-  material: 'harbor' | 'apartment'
-  bpm: number
-  rootHz: number
-  scale: number[]
-  levels: { music: number; ambient: number; sfx: number; master: number }
-  tension: Array<{ statId: string; direction: 'high' | 'low'; weight: number }>
+  maxDelta?: number
 }
 export interface SkillDefinition { id: string; label: string; value: number }
-export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[] }
+export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[]; detail?: string; lore?: string }
 export interface Choice { id: string; label: string }
 export type ImageBlockStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed'
 export interface StoryBlock { id: string; kind: 'narration' | 'dialogue' | 'check' | 'change' | 'event' | 'summary' | 'image'; text: string; speaker?: string; tone?: string; data?: Record<string, string | number> }
-export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean }
-export interface InventoryItem { id: string; label: string; count: number }
+export interface EntityMetric { label: string; value: string }
+export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; detail?: string; lore?: string; facts?: string[] }
+export interface InventoryItem {
+  id: string
+  label: string
+  count: number
+  rarity?: 'common' | 'rare' | 'legendary'
+  detail?: string
+  effect?: string
+  lore?: string
+  metrics?: EntityMetric[]
+  imagePrompt?: string
+  imageStatus?: ImageBlockStatus
+  imageUrl?: string
+}
 export interface RelationshipEvent { id: string; actor: string; axis: string; delta: number; source: string }
+
+export interface StoryDirector {
+  mode: 'guided' | 'open-world'
+  fixedWorldRules: string[]
+  generationRules: string[]
+  choiceIntents: [string, string, string]
+  maxActiveThreads: number
+}
 
 export interface StoryCartridge {
   schemaVersion: 1
@@ -44,6 +67,8 @@ export interface StoryCartridge {
   copy: { title: string; subtitle: string; promise: string; enter: string; continue: string; customAction: string }
   theme: ThemeTokens
   audioTheme: StoryAudioTheme
+  itemImageDirection?: string
+  director?: StoryDirector
   statDefinitions: [StatDefinition, StatDefinition, StatDefinition]
   drawerLabels: Record<DrawerId, string>
   opening: { location: string; time: string; objective: string; imagePrompt: string; blocks: StoryBlock[]; choices: Choice[] }
@@ -87,8 +112,9 @@ export type ParsedCommand =
   | { type: 'widget'; id: string; operation: 'value' | 'count' | 'add' | 'remove'; value: string | number }
   | { type: 'skill_check'; skill: string; dc: number; roll: number; modifier: number; total: number; result: string }
   | { type: 'state'; value: string }
-  | { type: 'map_update'; location: string; connectedTo?: string }
-  | { type: 'inventory'; action: 'add' | 'remove'; item: string; count: number }
+  | { type: 'clock'; value: string }
+  | { type: 'map_update'; location: string; connectedTo?: string; detail?: string; lore?: string; facts?: string[] }
+  | { type: 'inventory'; action: 'add' | 'remove'; item: string; count: number; rarity?: 'common' | 'rare' | 'legendary'; detail?: string; effect?: string; lore?: string; metrics?: EntityMetric[]; imagePrompt?: string }
   | { type: 'reputation'; npc: string; action: string }
   | { type: 'party_change'; character: string; change: 'add' | 'remove' }
   | { type: 'session_end'; reason: string }

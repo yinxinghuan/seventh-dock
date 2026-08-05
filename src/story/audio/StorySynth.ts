@@ -1,6 +1,6 @@
 import type { StoryAudioTheme } from '../types'
 
-export type StoryAudioCue = 'open' | 'action' | 'success' | 'failure' | 'change' | 'discovery' | 'image' | 'summary' | 'error'
+export type StoryAudioCue = 'open' | 'action' | 'success' | 'failure' | 'change' | 'discovery' | 'treasure' | 'image' | 'summary' | 'error'
 
 type AudioContextConstructor = typeof AudioContext
 type StoppableNode = AudioBufferSourceNode | OscillatorNode
@@ -90,13 +90,14 @@ export class StorySynth {
     if (!context || !theme || this.muted || context.state !== 'running') return
     const root = theme.rootHz
     const softer = theme.material === 'apartment'
+    const woody = theme.material === 'wayfarer'
     if (cue === 'open') {
       this.tone('sfx', root * 2, root * 2.5, .22, softer ? 'sine' : 'triangle', .34)
       this.tone('sfx', root * 2.5, root * 3, .28, 'sine', .22, .09)
     }
     if (cue === 'action') {
-      this.noise(.055, softer ? 950 : 1450, softer ? .15 : .22)
-      this.tone('sfx', softer ? 460 : 520, softer ? 390 : 410, .075, 'triangle', .24)
+      this.noise(.055, softer ? 950 : woody ? 720 : 1450, softer ? .15 : woody ? .12 : .22)
+      this.tone('sfx', softer ? 460 : woody ? 220 : 520, softer ? 390 : woody ? 180 : 410, woody ? .09 : .075, 'triangle', woody ? .2 : .24)
     }
     if (cue === 'success') {
       ;[0, 4, 7].forEach((step, index) => this.tone('sfx', frequency(root * 3, step), frequency(root * 3, step), .16, 'sine', .2, index * .075))
@@ -109,6 +110,9 @@ export class StorySynth {
     }
     if (cue === 'discovery') {
       ;[0, 7, 12].forEach((step, index) => this.tone('sfx', frequency(root * 2.4, step), frequency(root * 2.4, step), .42, 'sine', .16, index * .11))
+    }
+    if (cue === 'treasure') {
+      ;[0, 2, 5, 7, 9].forEach((step, index) => this.tone('sfx', frequency(root * 2.4, step), frequency(root * 2.4, step), .42, index % 2 ? 'triangle' : 'sine', .13, index * .07))
     }
     if (cue === 'image') {
       this.tone('sfx', 760, 910, .18, 'sine', .14)
@@ -184,7 +188,7 @@ export class StorySynth {
     let smooth = 0
     for (let index = 0; index < samples.length; index += 1) {
       const white = Math.random() * 2 - 1
-      smooth = theme.material === 'harbor' ? smooth * .986 + white * .014 : smooth * .94 + white * .06
+      smooth = theme.material === 'harbor' ? smooth * .986 + white * .014 : theme.material === 'wayfarer' ? smooth * .972 + white * .028 : smooth * .94 + white * .06
       samples[index] = smooth
     }
     const noise = context.createBufferSource()
@@ -193,9 +197,9 @@ export class StorySynth {
     noise.buffer = buffer
     noise.loop = true
     filter.type = theme.material === 'harbor' ? 'bandpass' : 'lowpass'
-    filter.frequency.value = theme.material === 'harbor' ? 590 : 880
+    filter.frequency.value = theme.material === 'harbor' ? 590 : theme.material === 'wayfarer' ? 720 : 880
     filter.Q.value = theme.material === 'harbor' ? .55 : .3
-    gain.gain.value = theme.material === 'harbor' ? .7 : .42
+    gain.gain.value = theme.material === 'harbor' ? .7 : theme.material === 'wayfarer' ? .5 : .42
     noise.connect(filter)
     filter.connect(gain)
     gain.connect(output)
@@ -204,8 +208,8 @@ export class StorySynth {
     const drone = context.createOscillator()
     const droneGain = context.createGain()
     drone.type = 'sine'
-    drone.frequency.value = theme.material === 'harbor' ? 55 : 60
-    droneGain.gain.value = theme.material === 'harbor' ? .07 : .025
+    drone.frequency.value = theme.material === 'harbor' ? 55 : theme.material === 'wayfarer' ? 73.42 : 60
+    droneGain.gain.value = theme.material === 'harbor' ? .07 : theme.material === 'wayfarer' ? .018 : .025
     drone.connect(droneGain)
     droneGain.connect(output)
     drone.start()

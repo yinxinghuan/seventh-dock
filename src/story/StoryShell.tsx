@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import alteruMark from './img/alteru.svg'
-import { DEFAULT_CARTRIDGE_ID, resolveCartridge } from './cartridges'
+import { DEFAULT_CARTRIDGE_ID, listCartridges, resolveCartridge } from './cartridges'
 import { Icon, type IconName } from './Icons'
 import { detectLocale, detectTextLocale, rememberLocale, t } from './i18n'
-import type { DrawerId, ImageBlockStatus, Locale, StatDefinition, StoryBlock, StoryCartridge, StoryMode } from './types'
+import type { CharacterDefinition, DrawerId, ImageBlockStatus, InventoryItem, Locale, MapNode, RelationshipEvent, StatDefinition, StoryBlock, StoryCartridge, StoryMode } from './types'
 import { useStoryEngine } from './useStoryEngine'
 import { usePlayerProfile, type PlayerProfile } from './usePlayerProfile'
 import { useStoryAudio } from './audio/useStoryAudio'
+
+function useInitialCartridge() {
+  return new URLSearchParams(window.location.search).get('cartridge')
+}
 
 function setCssTheme(cartridge: StoryCartridge): React.CSSProperties {
   return {
@@ -16,9 +20,11 @@ function setCssTheme(cartridge: StoryCartridge): React.CSSProperties {
   } as React.CSSProperties
 }
 
-function Entry({ cartridge, onEnter, hasSave }: {
-  cartridge: StoryCartridge; onEnter: () => void; hasSave: boolean
+function Entry({ cartridge, onEnter, onSelect, mode, setMode, hasSave, remoteAvailable }: {
+  cartridge: StoryCartridge; onEnter: () => void; onSelect: (id: string) => void; mode: StoryMode; setMode: (mode: StoryMode) => void; hasSave: boolean; remoteAvailable: boolean
 }) {
+  const cartridges = listCartridges(cartridge.locale)
+  const showSourceControls = cartridges.length > 1 || new URLSearchParams(window.location.search).get('story_debug') === '1'
   return <main className={`st-entry st-entry--${cartridge.theme.material}`} style={setCssTheme(cartridge)}>
     <div className="st-entry__folio">{t(cartridge.locale, 'folio')}</div>
     <div className="st-entry__rule" />
@@ -28,6 +34,14 @@ function Entry({ cartridge, onEnter, hasSave }: {
     <figure className="st-entry__scene"><img src={cartridge.coverImage} alt="" draggable={false} /><span aria-hidden="true" /></figure>
     <p className="st-entry__promise">{cartridge.copy.promise}</p>
     <button className="st-primary" onPointerDown={onEnter}>{hasSave ? cartridge.copy.continue : cartridge.copy.enter}<Icon name="arrow" /></button>
+    {cartridges.length > 1 && <div className="st-entry__cartridges" aria-label={t(cartridge.locale, 'chooseWorld')}>
+      {cartridges.map((item) => <button key={item.id} className={item.id === cartridge.id ? 'is-active' : ''} onClick={() => onSelect(item.id)}><img src={item.coverImage} alt="" draggable={false} /><span><small>{t(cartridge.locale, 'cartridge')}</small>{item.copy.title}</span></button>)}
+    </div>}
+    {showSourceControls && <div className="st-entry__source">
+      <button className={mode === 'aigram' ? 'is-active' : ''} onClick={() => setMode('aigram')} title={t(cartridge.locale, 'aigramReady')}>{t(cartridge.locale, 'aigram')}</button>
+      <button className={mode === 'demo' ? 'is-active' : ''} onClick={() => setMode('demo')}>{t(cartridge.locale, 'demo')}</button>
+      <button className={mode === 'remote' ? 'is-active' : ''} onClick={() => setMode('remote')} disabled={!remoteAvailable} title={t(cartridge.locale, remoteAvailable ? 'remoteReady' : 'remoteUnavailable')}>{t(cartridge.locale, 'remote')}</button>
+    </div>}
     <div className="st-entry__brand"><img src={alteruMark} alt="" /> ALTERU</div>
   </main>
 }
@@ -86,7 +100,15 @@ function ConversationHeader({ cartridge, engine, audio, openWorld, textSize, set
       </div>
       <div className="st-chat-header__actions">
         <TextSizeControl locale={cartridge.locale} value={textSize} onChange={setTextSize} />
-        <button type="button" className="st-audio-button" aria-label={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')} title={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')} aria-pressed={!audio.muted} onClick={audio.toggle} disabled={!audio.supported}><Icon name={audio.muted ? 'volumeOff' : 'volume'} /></button>
+        <button
+          type="button"
+          className="st-audio-button"
+          aria-label={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')}
+          title={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')}
+          aria-pressed={!audio.muted}
+          onClick={audio.toggle}
+          disabled={!audio.supported}
+        ><Icon name={audio.muted ? 'volumeOff' : 'volume'} /></button>
         <button className="st-world-button" onClick={openWorld} aria-label={t(cartridge.locale, 'world')} title={t(cartridge.locale, 'world')}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
       </div>
     </div>
@@ -171,21 +193,91 @@ function Composer({ cartridge, engine, onAct }: { cartridge: StoryCartridge; eng
 
 const drawerIcons: Record<DrawerId, IconName> = { party: 'people', map: 'map', inventory: 'bag', log: 'book' }
 
+type WorldDetail =
+  | { type: 'player' }
+  | { type: 'character'; id: string }
+  | { type: 'map'; id: string }
+  | { type: 'inventory'; id: string }
+  | { type: 'objective' }
+  | { type: 'relationship'; id: string }
+  | { type: 'system' }
+
+function DetailSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return <section className="st-world-detail__section"><small>{label}</small>{children}</section>
+}
+
+function DetailMetrics({ rows }: { rows: Array<{ label: string; value: string | number }> }) {
+  return <dl className="st-world-detail__metrics">{rows.map((row, index) => <div key={`${row.label}-${index}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+}
+
+function CharacterDetail({ character, relationships, cartridge }: { character: CharacterDefinition; relationships: RelationshipEvent[]; cartridge: StoryCartridge }) {
+  const history = relationships.filter((event) => event.actor === character.name)
+  return <div className="st-world-detail">
+    <div className="st-world-detail__hero"><div className="st-roster__initial">{character.name.slice(0, 1)}</div><div><h3>{character.name}</h3><p>{character.role}</p></div></div>
+    <DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'vitality'), value: character.vitality }, { label: t(cartridge.locale, 'stress'), value: character.stress }]} /></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'abilities')}><DetailMetrics rows={character.skills.map((skill) => ({ label: skill.label, value: `${skill.value >= 0 ? '+' : ''}${skill.value}` }))} /></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'itemDescription')}><p>{character.detail ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
+    {character.lore && <DetailSection label={t(cartridge.locale, 'background')}><p>{character.lore}</p></DetailSection>}
+    <DetailSection label={t(cartridge.locale, 'relationshipHistory')}>{history.length ? <ul>{history.map((event) => <li key={event.id}>{event.axis} · {t(cartridge.locale, event.delta > 0 ? 'warmer' : 'colder')}</li>)}</ul> : <p>{t(cartridge.locale, 'noRelationshipHistory')}</p>}</DetailSection>
+  </div>
+}
+
+function MapDetail({ node, map, cartridge }: { node: MapNode; map: MapNode[]; cartridge: StoryCartridge }) {
+  const connections = Array.from(new Set([node.connectedTo, ...map.filter((candidate) => candidate.connectedTo === node.label).map((candidate) => candidate.label)].filter((value): value is string => Boolean(value))))
+  return <div className="st-world-detail">
+    <div className="st-world-detail__hero"><div className="st-world-detail__glyph"><Icon name="map" /></div><div><h3>{node.label}</h3><p>{node.current ? t(cartridge.locale, 'here') : t(cartridge.locale, 'worldRecord')}</p></div></div>
+    <DetailSection label={t(cartridge.locale, 'placeOverview')}><p>{node.detail ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'connections')}>{connections.length ? <ul>{connections.map((label) => <li key={label}>{label}</li>)}</ul> : <p>{t(cartridge.locale, 'noKnownFacts')}</p>}</DetailSection>
+    <DetailSection label={t(cartridge.locale, 'knownFacts')}>{node.facts?.length ? <ul>{node.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : <p>{t(cartridge.locale, 'noKnownFacts')}</p>}</DetailSection>
+    {node.lore && <DetailSection label={t(cartridge.locale, 'background')}><p>{node.lore}</p></DetailSection>}
+  </div>
+}
+
+function ItemDetail({ item, cartridge, generate }: { item: InventoryItem; cartridge: StoryCartridge; generate: (id: string) => void }) {
+  const status = item.imageStatus ?? (item.imageUrl ? 'ready' : 'idle')
+  const rarity = item.rarity ?? 'common'
+  const statusKey = `itemImage${status[0].toUpperCase()}${status.slice(1)}` as 'itemImageIdle' | 'itemImageQueued' | 'itemImageGenerating' | 'itemImageFailed' | 'itemImageReady'
+  const metrics = [{ label: t(cartridge.locale, 'quantity'), value: `× ${item.count}` }, { label: t(cartridge.locale, 'rarity'), value: t(cartridge.locale, rarity === 'legendary' ? 'rarityLegendary' : rarity === 'rare' ? 'rarityRare' : 'rarityCommon') }, ...(item.metrics ?? [])]
+  return <div className={`st-world-detail st-world-detail--item is-${rarity}`}>
+    <figure className={`st-item-illustration is-${status}`}>
+      {item.imageUrl ? <img src={item.imageUrl} alt={item.label} draggable={false} /> : <div><Icon name="bag" /><span>{item.label}</span></div>}
+      <figcaption><small>{t(cartridge.locale, 'itemIllustration')}</small><p>{t(cartridge.locale, statusKey)}</p><button type="button" onClick={() => generate(item.id)} disabled={status === 'queued' || status === 'generating'}><Icon name={status === 'failed' || status === 'ready' ? 'refresh' : 'image'} />{t(cartridge.locale, status === 'ready' ? 'regenerateItemImage' : status === 'failed' ? 'retry' : 'generateItemImage')}</button></figcaption>
+    </figure>
+    <DetailSection label={t(cartridge.locale, 'itemMetrics')}><DetailMetrics rows={metrics} /></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'itemDescription')}><p>{item.detail ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'itemEffect')}><p>{item.effect ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
+    <DetailSection label={t(cartridge.locale, 'itemLore')}><p>{item.lore ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
+  </div>
+}
+
 function WorldDrawer({ active, setActive, cartridge, engine, close, player }: {
   active: DrawerId; setActive: (id: DrawerId) => void; cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; close: () => void; player: PlayerProfile
 }) {
   const save = engine.save
+  const [detail, setDetail] = useState<WorldDetail | null>(null)
+  const character = detail?.type === 'character' ? cartridge.characters.find((entry) => entry.id === detail.id) : undefined
+  const mapNode = detail?.type === 'map' ? save.map.find((entry) => entry.id === detail.id) : undefined
+  const item = detail?.type === 'inventory' ? save.inventory.find((entry) => entry.id === detail.id) : undefined
+  const relationship = detail?.type === 'relationship' ? save.relationships.find((entry) => entry.id === detail.id) : undefined
+  const detailTitle = detail?.type === 'player' ? player.name : character?.name ?? mapNode?.label ?? item?.label ?? (detail?.type === 'objective' ? t(cartridge.locale, 'currentObjective') : detail?.type === 'system' ? t(cartridge.locale, 'system') : relationship?.actor)
   return <div className="st-drawer" role="dialog" aria-modal="true" aria-label={t(cartridge.locale, 'worldData')}><button className="st-drawer__scrim" onClick={close} aria-label={t(cartridge.locale, 'closeWorldData')} /><section>
-    <header><div><small>{t(cartridge.locale, 'worldRecord')}</small><h2>{cartridge.copy.title}</h2></div><button onClick={close} aria-label={t(cartridge.locale, 'close')}><Icon name="close" /></button></header>
-    <nav className="st-drawer-tabs">{(Object.keys(cartridge.drawerLabels) as DrawerId[]).map((id) => <button className={active === id ? 'is-active' : ''} onClick={() => setActive(id)} key={id}><Icon name={drawerIcons[id]} /><span>{cartridge.drawerLabels[id]}</span></button>)}</nav>
-    {active === 'party' && <div className="st-roster"><article className="st-roster__player"><PlayerAvatar profile={player} locale={cartridge.locale} large /><div><h3>{player.name}</h3><p>{t(cartridge.locale, 'protagonist')}</p></div><strong>{t(cartridge.locale, 'you')}</strong></article>{cartridge.characters.map((character) => <article key={character.id}><div className="st-roster__initial">{character.name.slice(0, 1)}</div><div><h3>{character.name}</h3><p>{character.role}</p><small>{t(cartridge.locale, 'vitality')} {character.vitality} · {t(cartridge.locale, 'stress')} {character.stress}</small></div><ul>{character.skills.map((skill) => <li key={skill.id}>{skill.label}<b>+{skill.value}</b></li>)}</ul></article>)}</div>}
-    {active === 'map' && <div className="st-map">{save.map.map((node, index) => <article className={node.current ? 'is-current' : ''} key={node.id}><small>{String(index + 1).padStart(2, '0')}</small><span>{node.label}</span>{node.current && <b>{t(cartridge.locale, 'here')}</b>}</article>)}</div>}
-    {active === 'inventory' && <div className="st-inventory">{save.inventory.map((item) => <article key={item.id}><span>{item.label}</span><b>× {item.count}</b></article>)}</div>}
-    {active === 'log' && <div className="st-log"><article><small>{t(cartridge.locale, 'currentObjective')}</small><p>{save.objective}</p></article>{save.relationships.map((event) => <article key={event.id}><small>{event.actor}</small><p>{event.axis} · {t(cartridge.locale, event.delta > 0 ? 'warmer' : 'colder')}</p></article>)}<article><small>{t(cartridge.locale, 'system')}</small><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></article></div>}
+    <header className={detail ? 'is-detail' : ''}>{detail ? <button onClick={() => setDetail(null)} aria-label={t(cartridge.locale, 'back')} title={t(cartridge.locale, 'back')}><Icon name="back" /></button> : <span className="st-drawer__header-spacer" />}<div><small>{detail ? t(cartridge.locale, 'openDetails') : t(cartridge.locale, 'worldRecord')}</small><h2>{detailTitle ?? cartridge.copy.title}</h2></div><button onClick={close} aria-label={t(cartridge.locale, 'close')}><Icon name="close" /></button></header>
+    {!detail && <nav className="st-drawer-tabs">{(Object.keys(cartridge.drawerLabels) as DrawerId[]).map((id) => <button className={active === id ? 'is-active' : ''} onClick={() => { setDetail(null); setActive(id) }} key={id}><Icon name={drawerIcons[id]} /><span>{cartridge.drawerLabels[id]}</span></button>)}</nav>}
+    {!detail && active === 'party' && <div className="st-roster"><button className="st-entity-row st-roster__player" onClick={() => setDetail({ type: 'player' })}><PlayerAvatar profile={player} locale={cartridge.locale} large /><div><h3>{player.name}</h3><p>{t(cartridge.locale, 'protagonist')}</p></div><strong>{t(cartridge.locale, 'you')}</strong><Icon name="arrow" /></button>{cartridge.characters.map((entry) => <button className="st-entity-row" onClick={() => setDetail({ type: 'character', id: entry.id })} key={entry.id}><div className="st-roster__initial">{entry.name.slice(0, 1)}</div><div><h3>{entry.name}</h3><p>{entry.role}</p><small>{t(cartridge.locale, 'vitality')} {entry.vitality} · {t(cartridge.locale, 'stress')} {entry.stress}</small></div><ul>{entry.skills.slice(0, 2).map((skill) => <li key={skill.id}>{skill.label}<b>+{skill.value}</b></li>)}</ul><Icon name="arrow" /></button>)}</div>}
+    {!detail && active === 'map' && <div className="st-map">{save.map.map((node, index) => <button className={`st-entity-row${node.current ? ' is-current' : ''}`} data-connected={Boolean(node.connectedTo)} onClick={() => setDetail({ type: 'map', id: node.id })} key={node.id}><small>{String(index + 1).padStart(2, '0')}</small><span>{node.label}{node.connectedTo && <i>{node.connectedTo}</i>}</span>{node.current && <b>{t(cartridge.locale, 'here')}</b>}<Icon name="arrow" /></button>)}</div>}
+    {!detail && active === 'inventory' && <div className="st-inventory">{save.inventory.map((entry) => <button className={`st-entity-row${entry.rarity ? ` is-${entry.rarity}` : ''}`} onClick={() => setDetail({ type: 'inventory', id: entry.id })} key={entry.id}><div><span>{entry.label}</span>{entry.effect && <small>{entry.effect}</small>}</div><b>× {entry.count}</b><Icon name="arrow" /></button>)}</div>}
+    {!detail && active === 'log' && <div className="st-log"><button className="st-entity-row" onClick={() => setDetail({ type: 'objective' })}><div><small>{t(cartridge.locale, 'currentObjective')}</small><p>{save.objective}</p></div><Icon name="arrow" /></button>{save.relationships.map((event) => <button className="st-entity-row" onClick={() => setDetail({ type: 'relationship', id: event.id })} key={event.id}><div><small>{event.actor}</small><p>{event.axis} · {t(cartridge.locale, event.delta > 0 ? 'warmer' : 'colder')}</p></div><Icon name="arrow" /></button>)}<button className="st-entity-row" onClick={() => setDetail({ type: 'system' })}><div><small>{t(cartridge.locale, 'system')}</small><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></div><Icon name="arrow" /></button></div>}
+    {detail?.type === 'player' && <div className="st-world-detail"><div className="st-world-detail__hero"><PlayerAvatar profile={player} locale={cartridge.locale} large /><div><h3>{player.name}</h3><p>{t(cartridge.locale, 'protagonist')}</p></div></div><DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, ...cartridge.statDefinitions.map((stat) => ({ label: stat.label, value: save.stats[stat.id] ?? stat.initial }))]} /></DetailSection><DetailSection label={t(cartridge.locale, 'currentObjective')}><p>{save.objective}</p></DetailSection></div>}
+    {character && <CharacterDetail character={character} relationships={save.relationships} cartridge={cartridge} />}
+    {mapNode && <MapDetail node={mapNode} map={save.map} cartridge={cartridge} />}
+    {item && <ItemDetail item={item} cartridge={cartridge} generate={engine.requestItemImage} />}
+    {detail?.type === 'objective' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'currentObjective')}><p>{save.objective}</p></DetailSection><DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></DetailSection></div>}
+    {relationship && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'journalDetail')}><p>{relationship.actor} · {relationship.axis}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'currentStatus'), value: t(cartridge.locale, relationship.delta > 0 ? 'warmer' : 'colder') }, { label: t(cartridge.locale, 'yourAction'), value: relationship.source }]} /></div>}
+    {detail?.type === 'system' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'system')}><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></div>}
   </section></div>
 }
 
-function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCartridge; mode: StoryMode; chatId?: string; onLocaleChange: (locale: Locale) => void }) {
+function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge: StoryCartridge; mode: StoryMode; chatId?: string; onSelect: (id: string) => void; onLocaleChange: (locale: Locale) => void }) {
   const player = usePlayerProfile()
   const engine = useStoryEngine(cartridge, mode, chatId, { ready: player.loaded, refUrl: player.imageRefUrl })
   const audio = useStoryAudio(cartridge, engine.save)
@@ -263,8 +355,10 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
       const summary = added.some((block) => block.kind === 'summary')
       const check = added.find((block) => block.kind === 'check')
       const discovery = added.some((block) => block.kind === 'event' && !block.id.startsWith('action-'))
+      const treasure = added.some((block) => block.kind === 'change' && (block.data?.rarity === 'rare' || block.data?.rarity === 'legendary'))
       const change = added.some((block) => block.kind === 'change')
       if (summary) audio.cue('summary')
+      else if (treasure) audio.cue('treasure')
       else if (check) audio.cue(Number(check.data?.total) >= Number(check.data?.dc) ? 'success' : 'failure')
       else if (discovery) audio.cue('discovery')
       else if (change) audio.cue('change')
@@ -315,7 +409,7 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   }, [engine.save.choices, engine.busy])
 
   if (!engine.loaded) return <div className="st-loading" style={setCssTheme(cartridge)}><i /><span>{t(cartridge.locale, 'restoring')}</span></div>
-  if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={() => { audio.cue('open'); engine.enter() }} hasSave={engine.save.scene > 0} />
+  if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={() => { audio.cue('open'); engine.enter() }} onSelect={onSelect} mode={engine.mode} setMode={engine.setMode} hasSave={engine.save.scene > 0} remoteAvailable={Boolean(engine.save.remoteChatId)} />
   return <main className={`st-shell st-shell--${cartridge.theme.material}`} data-text-size={textSize} style={setCssTheme(cartridge)}>
     <ConversationHeader cartridge={cartridge} engine={engine} audio={audio} openWorld={() => setWorldOpen(true)} textSize={textSize} setTextSize={setTextSize} />
     <ConversationFeed cartridge={cartridge} engine={engine} feedRef={feedRef} endRef={endRef} onScroll={onScroll} player={player} />
@@ -326,12 +420,18 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
 }
 
 export default function StoryShell() {
+  const initial = useInitialCartridge()
+  const [cartridgeId, setCartridgeId] = useState(initial ?? DEFAULT_CARTRIDGE_ID)
   const [locale, setLocale] = useState<Locale>(() => detectLocale())
-  const cartridge = useMemo(() => resolveCartridge(DEFAULT_CARTRIDGE_ID, locale), [locale])
+  const cartridge = useMemo(() => resolveCartridge(cartridgeId, locale), [cartridgeId, locale])
   const params = new URLSearchParams(window.location.search)
   const chatId = params.get('chat_id') || undefined
   const mode: StoryMode = chatId ? 'remote' : params.get('story_mode') === 'demo' ? 'demo' : 'aigram'
   useEffect(() => { document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en' }, [locale])
+  const select = (id: string) => {
+    const url = new URL(window.location.href); url.searchParams.set('cartridge', id); url.searchParams.delete('chat_id'); window.history.replaceState({}, '', url)
+    setCartridgeId(id)
+  }
   const changeLocale = (next: Locale) => { rememberLocale(next); setLocale(next) }
-  return <Game key={cartridge.id} cartridge={cartridge} mode={mode} chatId={chatId} onLocaleChange={changeLocale} />
+  return <Game key={cartridge.id} cartridge={cartridge} mode={mode} chatId={chatId} onSelect={select} onLocaleChange={changeLocale} />
 }
