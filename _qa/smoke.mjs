@@ -72,6 +72,24 @@ await page.screenshot({ path: shot('entry') })
 await page.getByRole('button', { name: config.enter }).click()
 await page.waitForFunction(() => document.querySelector('.st-message-image.is-ready'))
 if (imagePayload?.ref_url !== avatarUrl) throw new Error(`avatar ref_url missing: ${JSON.stringify(imagePayload)}`)
+await page.locator('.st-text-size summary').click()
+await page.screenshot({ path: shot('text-size') })
+await page.getByRole('button', { name: 'Large', exact: true }).click()
+const textSize = await page.evaluate(() => ({
+  mode: document.querySelector('.st-shell')?.getAttribute('data-text-size'),
+  prose: getComputedStyle(document.querySelector('.st-narration p')).fontSize,
+  saved: localStorage.getItem('alteru_story_text_size'),
+}))
+if (textSize.mode !== 'large' || textSize.prose !== '19px' || textSize.saved !== 'large') throw new Error(`text size setting failed: ${JSON.stringify(textSize)}`)
+await page.reload({ waitUntil: 'networkidle' })
+await page.addStyleTag({ content: '#alteru-guest-banner{display:none!important}' })
+await page.locator('.st-shell[data-text-size="large"]').waitFor()
+const headerLayout = await page.evaluate(() => {
+  const title = document.querySelector('.st-chat-header__identity span').getBoundingClientRect()
+  const actions = document.querySelector('.st-chat-header__actions').getBoundingClientRect()
+  return { titleRight: title.right, actionsLeft: actions.left, titleTop: title.top, titleBottom: title.bottom }
+})
+if (headerLayout.titleRight > headerLayout.actionsLeft + 1) throw new Error(`header title overlaps text controls: ${JSON.stringify(headerLayout)}`)
 await page.getByRole('button', { name: config.choice }).click()
 await page.locator('.st-message--player:not(.is-pending) .st-player-avatar img').last().waitFor()
 await page.locator('.st-typing').waitFor({ state: 'hidden' })
@@ -105,5 +123,5 @@ if (width === 390) {
   await external.close()
 }
 
-console.log(`${gameId} ok · single cartridge · uuid · isolated save · avatar · gen-image ref · ${width}x${height}`)
+console.log(`${gameId} ok · single cartridge · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
 await browser.close()

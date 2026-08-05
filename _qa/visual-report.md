@@ -43,6 +43,7 @@ The Shell uses `minmax(0,1fr)`, the conversation can shrink, and the player bubb
 - Horizontal choices use `onClick`; drag-to-scroll does not submit on pointer down.
 - Entry, core play, player avatar, check/state feedback, World drawer, platform layout and external guest states are captured.
 - Debug HTTPS avatar reaches action, protagonist record and gen-image `ref_url`; fallback stays local and is not sent to img2img.
+- Text size: top `Aa` menu, 44 px target, small/standard/large states, 19 px large prose, reload persistence, title/control non-overlap and 320 px overflow assertions pass.
 - Formal poster remains English-only and was previously validated at 1024 and 160.
 
 ## Final recommendation

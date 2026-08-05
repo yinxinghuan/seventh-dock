@@ -34,12 +34,14 @@
 
 语言优先级为 query `lang`、存档和浏览器系统；明确中文/英文自由输入会切换后续 Shell、Cartridge 内容与远程回复约束，历史块保持原文。
 
+文字大小由顶部 `TextSizeControl` 提供 `small / standard / large` 三档，写入 `localStorage.alteru_story_text_size`，通过 `.st-shell[data-text-size]` 的 CSS 变量只调整阅读层级。它不进入 StorySave，也不触发云端剧情存档写入。
+
 ## 4. 扩展点
 
 - 改港区故事、数值、角色、地图、物品和演示回合：编辑 `src/story/cartridges/seventhDock.ts`。
 - 改结构化规则或新增命令：先更新 `src/story/types.ts`，再改 `engine/protocol.ts` 与 `engine/reducer.ts`。
 - 改远程世界接口：编辑 `src/story/adapters/remote.ts`，保持 `StoryAdapter` 合同。
 - 改主角资料或图片身份约束：分别编辑 `usePlayerProfile.ts` 与 `useStoryEngine.ts`；不要把头像字段加入 StorySave。
-- 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留时间线图片原位、44 px 触控目标和窄屏网格收缩合同。
+- 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留时间线图片原位、44 px 触控目标、三档可读字号和窄屏网格收缩合同。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。

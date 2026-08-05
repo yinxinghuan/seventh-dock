@@ -11,7 +11,7 @@
 ## 2. 构图与视角
 
 - 响应式竖屏 DOM；390×844 与 320×568 主验收，桌面 Shell 最大 720 px，正文最大 610 px。
-- 顶部 84–104 px：标题、港区/时间、潮位/补给/警戒和唯一 World 按钮。
+- 顶部 84–104 px：标题、港区/时间、潮位/补给/警戒、44 px `Aa` 文字设置和 World 按钮。
 - 中部：独立滚动时间线，按发生顺序混排玩家行动、叙述、台词、检定、变化和图片。
 - 底部 104–152 px：横向快速回复与自由输入，下一张选项部分露出以暗示可滑动。
 - 玩家消息靠右，32 px 头像固定在外缘；NPC 消息靠左。World 抽屉覆盖时间线而不永久占位。
@@ -24,10 +24,11 @@
 
 ## 4. 字体
 
-- 叙述：`Songti SC, Noto Serif SC, Georgia, serif`，16–18 px，行高 1.7。
-- 台词与行动：`Inter, PingFang SC, Noto Sans SC, sans-serif`，15–17 px，行高 1.5。
+- 叙述：`Songti SC, Noto Serif SC, Georgia, serif`，小/标准/大为 16/17/19 px，行高 1.75。
+- 台词与行动：`Inter, PingFang SC, Noto Sans SC, sans-serif`，小/标准/大为 14/15/17 px，行高 1.5。
 - 地点、数值与记录：等宽风格 9–12 px。
 - 英文标题使用 Georgia/Iowan Old Style，短标题允许 Title Case；中文标题不使用全大写式字距。
+- `Aa` 打开三档紧凑菜单；当前档同时用描边、底色和 `aria-pressed` 表达。选择写入 `localStorage.alteru_story_text_size`，不进入故事存档。
 
 ## 5. 形状、材质与光线
 

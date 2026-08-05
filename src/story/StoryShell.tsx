@@ -52,8 +52,30 @@ function PlayerAvatar({ profile, locale, large = false }: { profile: PlayerProfi
   </span>
 }
 
-function ConversationHeader({ cartridge, engine, openWorld }: {
-  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; openWorld: () => void
+type TextSize = 'small' | 'standard' | 'large'
+
+const TEXT_SIZE_KEY = 'alteru_story_text_size'
+const textSizes: TextSize[] = ['small', 'standard', 'large']
+
+function readTextSize(): TextSize {
+  const saved = localStorage.getItem(TEXT_SIZE_KEY)
+  return textSizes.includes(saved as TextSize) ? saved as TextSize : 'standard'
+}
+
+function TextSizeControl({ locale, value, onChange }: { locale: Locale; value: TextSize; onChange: (size: TextSize) => void }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+  const labelKey = (size: TextSize) => `textSize${size[0].toUpperCase()}${size.slice(1)}` as 'textSizeSmall' | 'textSizeStandard' | 'textSizeLarge'
+  const close = () => detailsRef.current?.removeAttribute('open')
+  return <details className="st-text-size" ref={detailsRef} onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
+    <summary aria-label={`${t(locale, 'textSize')}: ${t(locale, labelKey(value))}`} title={t(locale, 'textSize')}><span aria-hidden="true">Aa</span></summary>
+    <div role="group" aria-label={t(locale, 'textSize')}>
+      {textSizes.map((size) => <button type="button" className={`is-${size}`} aria-pressed={value === size} onClick={() => { onChange(size); close() }} key={size}><span aria-hidden="true">A</span><small>{t(locale, labelKey(size))}</small></button>)}
+    </div>
+  </details>
+}
+
+function ConversationHeader({ cartridge, engine, openWorld, textSize, setTextSize }: {
+  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; openWorld: () => void; textSize: TextSize; setTextSize: (size: TextSize) => void
 }) {
   return <header className="st-chat-header">
     <div className="st-chat-header__top">
@@ -61,7 +83,10 @@ function ConversationHeader({ cartridge, engine, openWorld }: {
         <div><span>{cartridge.copy.title}</span><i className={engine.mode === 'remote' ? 'is-live' : ''} /><img src={alteruMark} alt="" /></div>
         <small>{engine.save.location} · {engine.save.time}</small>
       </div>
-      <button className="st-world-button" onClick={openWorld}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
+      <div className="st-chat-header__actions">
+        <TextSizeControl locale={cartridge.locale} value={textSize} onChange={setTextSize} />
+        <button className="st-world-button" onClick={openWorld}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
+      </div>
     </div>
     <div className="st-chat-stats" aria-label={t(cartridge.locale, 'stats')}>
       {cartridge.statDefinitions.map((stat) => {
@@ -160,12 +185,14 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   const [worldOpen, setWorldOpen] = useState(false)
   const [worldTab, setWorldTab] = useState<DrawerId>('party')
   const [hasUnread, setHasUnread] = useState(false)
+  const [textSize, setTextSizeState] = useState<TextSize>(() => readTextSize())
   const feedRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
   const hydratedLocale = useRef(false)
   const latestBlock = engine.save.blocks.at(-1)
   const latestImageStatus = latestBlock?.kind === 'image' ? String(latestBlock.data?.status ?? '') : ''
+  const setTextSize = (size: TextSize) => { localStorage.setItem(TEXT_SIZE_KEY, size); setTextSizeState(size) }
 
   useEffect(() => {
     if (!engine.loaded || hydratedLocale.current) return
@@ -213,8 +240,8 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
 
   if (!engine.loaded) return <div className="st-loading" style={setCssTheme(cartridge)}><i /><span>{t(cartridge.locale, 'restoring')}</span></div>
   if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={engine.enter} hasSave={engine.save.scene > 0} />
-  return <main className={`st-shell st-shell--${cartridge.theme.material}`} style={setCssTheme(cartridge)}>
-    <ConversationHeader cartridge={cartridge} engine={engine} openWorld={() => setWorldOpen(true)} />
+  return <main className={`st-shell st-shell--${cartridge.theme.material}`} data-text-size={textSize} style={setCssTheme(cartridge)}>
+    <ConversationHeader cartridge={cartridge} engine={engine} openWorld={() => setWorldOpen(true)} textSize={textSize} setTextSize={setTextSize} />
     <ConversationFeed cartridge={cartridge} engine={engine} feedRef={feedRef} endRef={endRef} onScroll={onScroll} player={player} />
     {hasUnread && <button className="st-new-content" onClick={() => { follow.current = true; scrollToLatest(true) }}>{t(cartridge.locale, 'newContent')}<Icon name="arrow" /></button>}
     <Composer cartridge={cartridge} engine={engine} onAct={act} />
