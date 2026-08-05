@@ -162,5 +162,5 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const useAigramFallback = useCallback(() => { setMode('aigram'); setError('') }, [])
   const continueAfterSummary = useCallback(() => commit((current) => ({ ...current, locale: cartridge.locale, sessionEnded: false, choices: [{ id: `continue-${current.scene}`, label: cartridge.copy.continue }] })), [cartridge, commit])
   const retryImage = useCallback((blockId: string) => { imageAttempt.current = ''; commit((current) => updateImageBlock(current, blockId, { status: 'queued' })) }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, loaded: cloud.loaded, clear: cloud.clear }
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
 }

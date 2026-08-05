@@ -7,6 +7,14 @@ const shared = {
   id: 'seventh-dock',
   coverImage,
   theme: { outer: '#071113', surface: '#0c1a1d', paper: '#d7d8cb', ink: '#1e2929', muted: '#718184', accent: '#3d7c82', danger: '#b6603c', gold: '#d3a653', material: 'harbor' as const },
+  audioTheme: {
+    material: 'harbor' as const,
+    bpm: 54,
+    rootHz: 110,
+    scale: [0, 3, 5, 7, 10],
+    levels: { music: .12, ambient: .1, sfx: .18, master: .24 },
+    tension: [{ statId: 'tide', direction: 'high' as const, weight: .45 }, { statId: 'alert', direction: 'high' as const, weight: .4 }, { statId: 'supplies', direction: 'low' as const, weight: .15 }],
+  },
 }
 
 export const seventhDock: StoryCartridge = {

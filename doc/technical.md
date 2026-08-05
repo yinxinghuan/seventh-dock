@@ -18,6 +18,7 @@
 - `src/story/adapters/`：Aigram AI、有限本地演示与实验远程连续世界适配器。
 - `src/story/useStoryEngine.ts`：状态镜像、Aigram 存档、Adapter 调用和串行图片队列。
 - `src/story/usePlayerProfile.ts`：调试覆盖、Aigram 用户资料与默认 `U` 回退。
+- `src/story/audio/StorySynth.ts`、`useStoryAudio.ts`：程序化海港声景、事件反馈、数值张力映射与静音记忆。
 - `src/shared/runtime/`、`src/shared/save/`：平台 bridge、生图与存档实现。
 - `src/story/img/worlds/seventh-dock.webp`：入口和图片等待态共用的无字港区母图。
 - `public/poster.png`、`doc/poster-source.md`：正式英文海报及 transit 来源记录。
@@ -38,6 +39,8 @@
 
 文字大小由顶部 `TextSizeControl` 提供 `small / standard / large` 三档，写入 `localStorage.alteru_story_text_size`，通过 `.st-shell[data-text-size]` 的 CSS 变量只调整阅读层级。它不进入 StorySave，也不触发云端剧情存档写入。
 
+声音使用浏览器 Web Audio API 实时合成，不下载音频文件，也不请求音频生成接口。首次用户手势后创建 `AudioContext`，`music / ambient / sfx` 三路总线限制最多 8 个活跃声部。港区配置为 54 BPM、A2 根音和五声音阶；潮位、警戒升高及补给降低会提高 8 拍循环的脉冲密度。进入、行动、检定成败、状态变化、发现、图片完成、阶段小结与错误均有独立 cue。顶部 44 px 扬声器按钮把偏好写入 `localStorage.alteru_story_audio_muted`；页面后台暂停，设备不支持时静默降级。音频偏好不进入 StorySave。
+
 ## 4. 扩展点
 
 - 改港区故事、数值、角色、地图、物品和演示回合：编辑 `src/story/cartridges/seventhDock.ts`。
@@ -45,6 +48,7 @@
 - 改正式 AI 上下文/提示：编辑 `src/story/adapters/aigram.ts`；改远程世界接口：编辑 `remote.ts`。保持 `StoryAdapter` 合同。
 - 改主角资料或图片身份约束：分别编辑 `usePlayerProfile.ts` 与 `useStoryEngine.ts`；不要把头像字段加入 StorySave。
 - 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留文字优先滚动锚点、时间线图片原位、44 px 触控目标、三档可读字号和 148–310 px 自适应快速回复合同。
+- 改音色、节奏或数值张力：先改 `seventhDock.ts` 的 `audioTheme`；只有新增跨题材事件音色时才改 `audio/StorySynth.ts`。
 
 `StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block；接口错误也拥有自己的阅读锚点。已开始回合保留最多 60dvh/520 px 的阅读余量，保证短回复/错误能滚到视野上部。图片状态不触发滚动。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。

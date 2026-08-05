@@ -6,6 +6,7 @@ import { detectLocale, detectTextLocale, rememberLocale, t } from './i18n'
 import type { DrawerId, ImageBlockStatus, Locale, StatDefinition, StoryBlock, StoryCartridge, StoryMode } from './types'
 import { useStoryEngine } from './useStoryEngine'
 import { usePlayerProfile, type PlayerProfile } from './usePlayerProfile'
+import { useStoryAudio } from './audio/useStoryAudio'
 
 function setCssTheme(cartridge: StoryCartridge): React.CSSProperties {
   return {
@@ -74,8 +75,8 @@ function TextSizeControl({ locale, value, onChange }: { locale: Locale; value: T
   </details>
 }
 
-function ConversationHeader({ cartridge, engine, openWorld, textSize, setTextSize }: {
-  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; openWorld: () => void; textSize: TextSize; setTextSize: (size: TextSize) => void
+function ConversationHeader({ cartridge, engine, audio, openWorld, textSize, setTextSize }: {
+  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; audio: ReturnType<typeof useStoryAudio>; openWorld: () => void; textSize: TextSize; setTextSize: (size: TextSize) => void
 }) {
   return <header className="st-chat-header">
     <div className="st-chat-header__top">
@@ -85,7 +86,8 @@ function ConversationHeader({ cartridge, engine, openWorld, textSize, setTextSiz
       </div>
       <div className="st-chat-header__actions">
         <TextSizeControl locale={cartridge.locale} value={textSize} onChange={setTextSize} />
-        <button className="st-world-button" onClick={openWorld}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
+        <button type="button" className="st-audio-button" aria-label={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')} title={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')} aria-pressed={!audio.muted} onClick={audio.toggle} disabled={!audio.supported}><Icon name={audio.muted ? 'volumeOff' : 'volume'} /></button>
+        <button className="st-world-button" onClick={openWorld} aria-label={t(cartridge.locale, 'world')} title={t(cartridge.locale, 'world')}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
       </div>
     </div>
     <div className="st-chat-stats" aria-label={t(cartridge.locale, 'stats')}>
@@ -186,6 +188,7 @@ function WorldDrawer({ active, setActive, cartridge, engine, close, player }: {
 function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCartridge; mode: StoryMode; chatId?: string; onLocaleChange: (locale: Locale) => void }) {
   const player = usePlayerProfile()
   const engine = useStoryEngine(cartridge, mode, chatId, { ready: player.loaded, refUrl: player.imageRefUrl })
+  const audio = useStoryAudio(cartridge, engine.save)
   const [worldOpen, setWorldOpen] = useState(false)
   const [worldTab, setWorldTab] = useState<DrawerId>('party')
   const [hasUnread, setHasUnread] = useState(false)
@@ -196,6 +199,10 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   const responseAnchor = useRef<{ from: number } | null>(null)
   const wasEntered = useRef(engine.save.entered)
   const hydratedLocale = useRef(false)
+  const audioInitialized = useRef(false)
+  const audioBlockCount = useRef(0)
+  const readyAudioImages = useRef<Set<string>>(new Set())
+  const lastAudioError = useRef('')
   const setTextSize = (size: TextSize) => { localStorage.setItem(TEXT_SIZE_KEY, size); setTextSizeState(size) }
 
   useEffect(() => {
@@ -237,8 +244,36 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
 
   useEffect(() => {
     if (!engine.error) return
+    if (engine.error !== lastAudioError.current) audio.cue('error')
+    lastAudioError.current = engine.error
     requestAnimationFrame(() => scrollBlockToReadingStart(feedRef.current?.querySelector<HTMLElement>('[data-story-error]') ?? null))
-  }, [engine.error])
+  }, [audio.cue, engine.error])
+
+  useEffect(() => {
+    if (!engine.loaded) return
+    const readyImages = new Set(engine.save.blocks.filter((block) => block.kind === 'image' && block.data?.status === 'ready').map((block) => block.id))
+    if (!audioInitialized.current) {
+      audioInitialized.current = true
+      audioBlockCount.current = engine.save.blocks.length
+      readyAudioImages.current = readyImages
+      return
+    }
+    const added = engine.save.blocks.slice(audioBlockCount.current)
+    if (added.length) {
+      const summary = added.some((block) => block.kind === 'summary')
+      const check = added.find((block) => block.kind === 'check')
+      const discovery = added.some((block) => block.kind === 'event' && !block.id.startsWith('action-'))
+      const change = added.some((block) => block.kind === 'change')
+      if (summary) audio.cue('summary')
+      else if (check) audio.cue(Number(check.data?.total) >= Number(check.data?.dc) ? 'success' : 'failure')
+      else if (discovery) audio.cue('discovery')
+      else if (change) audio.cue('change')
+      else audio.cue('change')
+    }
+    readyImages.forEach((id) => { if (!readyAudioImages.current.has(id)) audio.cue('image') })
+    audioBlockCount.current = engine.save.blocks.length
+    readyAudioImages.current = readyImages
+  }, [audio.cue, engine.loaded, engine.save.blocks])
 
   useEffect(() => {
     const anchor = responseAnchor.current
@@ -264,6 +299,7 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
     if (nextLocale !== cartridge.locale) onLocaleChange(nextLocale)
     follow.current = true
     responseAnchor.current = { from: engine.save.blocks.length }
+    audio.cue('action')
     engine.act(action, nextLocale)
   }
 
@@ -279,9 +315,9 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   }, [engine.save.choices, engine.busy])
 
   if (!engine.loaded) return <div className="st-loading" style={setCssTheme(cartridge)}><i /><span>{t(cartridge.locale, 'restoring')}</span></div>
-  if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={engine.enter} hasSave={engine.save.scene > 0} />
+  if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={() => { audio.cue('open'); engine.enter() }} hasSave={engine.save.scene > 0} />
   return <main className={`st-shell st-shell--${cartridge.theme.material}`} data-text-size={textSize} style={setCssTheme(cartridge)}>
-    <ConversationHeader cartridge={cartridge} engine={engine} openWorld={() => setWorldOpen(true)} textSize={textSize} setTextSize={setTextSize} />
+    <ConversationHeader cartridge={cartridge} engine={engine} audio={audio} openWorld={() => setWorldOpen(true)} textSize={textSize} setTextSize={setTextSize} />
     <ConversationFeed cartridge={cartridge} engine={engine} feedRef={feedRef} endRef={endRef} onScroll={onScroll} player={player} />
     {hasUnread && <button className="st-new-content" onClick={() => { follow.current = true; scrollToLatest(true) }}>{t(cartridge.locale, 'newContent')}<Icon name="arrow" /></button>}
     <Composer cartridge={cartridge} engine={engine} onAct={act} />

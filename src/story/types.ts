@@ -19,6 +19,14 @@ export interface StatDefinition {
   warningAt?: number
   dangerAt?: number
 }
+export interface StoryAudioTheme {
+  material: 'harbor' | 'apartment'
+  bpm: number
+  rootHz: number
+  scale: number[]
+  levels: { music: number; ambient: number; sfx: number; master: number }
+  tension: Array<{ statId: string; direction: 'high' | 'low'; weight: number }>
+}
 export interface SkillDefinition { id: string; label: string; value: number }
 export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[] }
 export interface Choice { id: string; label: string }
@@ -35,6 +43,7 @@ export interface StoryCartridge {
   coverImage: string
   copy: { title: string; subtitle: string; promise: string; enter: string; continue: string; customAction: string }
   theme: ThemeTokens
+  audioTheme: StoryAudioTheme
   statDefinitions: [StatDefinition, StatDefinition, StatDefinition]
   drawerLabels: Record<DrawerId, string>
   opening: { location: string; time: string; objective: string; imagePrompt: string; blocks: StoryBlock[]; choices: Choice[] }

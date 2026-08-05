@@ -46,6 +46,15 @@ let chatCalls = 0
 
 async function createPage(hideBanner = true, storyMode = 'demo') {
   const page = await browser.newPage({ viewport: { width, height }, locale: 'en-US' })
+  await page.addInitScript(() => {
+    const prototype = window.AudioContext?.prototype
+    if (!prototype) return
+    const createOscillator = prototype.createOscillator
+    prototype.createOscillator = function (...args) {
+      window.__storyAudioOscillators = (window.__storyAudioOscillators || 0) + 1
+      return createOscillator.apply(this, args)
+    }
+  })
   await page.route('https://images.aiwaves.tech/alteru/guest-shell.js', (route) => route.fulfill({
     contentType: 'application/javascript',
     body: `document.body.insertAdjacentHTML('afterbegin','<div id="alteru-guest-banner" style="position:fixed;z-index:9999;inset:0 0 auto;height:52px;background:#111;color:white;display:flex;align-items:center;justify-content:center;font:12px sans-serif">ALTERU · OPEN IN APP</div>')`,
@@ -87,6 +96,18 @@ await page.screenshot({ path: shot('entry') })
 
 await page.getByRole('button', { name: config.enter }).click()
 await page.locator('.st-message-image.is-generating').waitFor()
+const audioButton = page.getByRole('button', { name: 'Mute sound' })
+await audioButton.waitFor()
+const audioBox = await audioButton.boundingBox()
+await page.waitForFunction(() => (window.__storyAudioOscillators || 0) > 0)
+const audioStarted = await page.evaluate(() => window.__storyAudioOscillators || 0)
+if (!audioBox || audioBox.width < 44 || audioBox.height < 44 || audioStarted < 1) throw new Error(`procedural audio did not unlock with a 44px control: ${JSON.stringify({ audioBox, audioStarted })}`)
+await audioButton.click()
+const mutedState = await page.evaluate(() => ({ muted: localStorage.getItem('alteru_story_audio_muted'), pressed: document.querySelector('.st-audio-button')?.getAttribute('aria-pressed') }))
+if (mutedState.muted !== '1' || mutedState.pressed !== 'false') throw new Error(`mute state was not persisted: ${JSON.stringify(mutedState)}`)
+await page.getByRole('button', { name: 'Enable sound' }).click()
+const enabledState = await page.evaluate(() => ({ muted: localStorage.getItem('alteru_story_audio_muted'), pressed: document.querySelector('.st-audio-button')?.getAttribute('aria-pressed') }))
+if (enabledState.muted !== '0' || enabledState.pressed !== 'true') throw new Error(`unmute state was not persisted: ${JSON.stringify(enabledState)}`)
 const openingReading = await page.evaluate(() => {
   const feed = document.querySelector('.st-conversation').getBoundingClientRect()
   const prose = document.querySelector('.st-narration').getBoundingClientRect()
@@ -210,5 +231,5 @@ if (chatCalls !== 2 || !chatPayload?.messages?.[0]?.content?.includes('Only thes
 await aiPage.screenshot({ path: shot('ai-continuation') })
 await aiPage.close()
 
-console.log(`${gameId} ok · Aigram continuation/retry · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
+console.log(`${gameId} ok · procedural audio/mute · Aigram continuation/retry · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
 await browser.close()
