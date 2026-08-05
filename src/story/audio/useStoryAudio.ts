@@ -26,6 +26,7 @@ export function useStoryAudio(cartridge: StoryCartridge, save: StorySave) {
   const synthRef = useRef<StorySynth | null>(null)
   if (!synthRef.current) synthRef.current = new StorySynth()
   const [muted, setMutedState] = useState(readMuted)
+  const [ready, setReady] = useState(false)
   const statSignature = cartridge.audioTheme.tension.map((source) => `${source.statId}:${save.stats[source.statId] ?? 0}`).join('|')
 
   useEffect(() => {
@@ -43,21 +44,35 @@ export function useStoryAudio(cartridge: StoryCartridge, save: StorySave) {
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
+  useEffect(() => {
+    const synth = synthRef.current
+    synth?.setStateListener(setReady)
+    return () => synth?.setStateListener(null)
+  }, [])
+
   useEffect(() => () => synthRef.current?.dispose(), [])
 
-  const unlock = useCallback(async () => synthRef.current?.unlock() ?? false, [])
+  const unlock = useCallback(async () => {
+    const running = await synthRef.current?.unlock() ?? false
+    setReady(running)
+    return running
+  }, [])
   const cue = useCallback((name: StoryAudioCue) => {
     if (muted) return
     void (async () => {
-      if (await synthRef.current?.unlock()) synthRef.current?.cue(name)
+      if (await unlock()) synthRef.current?.cue(name)
     })()
-  }, [muted])
-  const toggle = useCallback(() => setMutedState((current) => {
-    const next = !current
-    synthRef.current?.setMuted(next)
-    if (!next) void synthRef.current?.unlock().then((ready) => { if (ready) synthRef.current?.cue('open') })
-    return next
-  }), [])
+  }, [muted, unlock])
+  const toggle = useCallback(() => {
+    if (muted || !ready) {
+      setMutedState(false)
+      synthRef.current?.setMuted(false)
+      void unlock().then((running) => { if (running) synthRef.current?.cue('open') })
+      return
+    }
+    synthRef.current?.setMuted(true)
+    setMutedState(true)
+  }, [muted, ready, unlock])
 
-  return { muted, supported: synthRef.current.supported, unlock, cue, toggle }
+  return { muted, ready, active: !muted && ready, supported: synthRef.current.supported, unlock, cue, toggle }
 }

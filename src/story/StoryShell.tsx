@@ -92,6 +92,7 @@ function TextSizeControl({ locale, value, onChange }: { locale: Locale; value: T
 function ConversationHeader({ cartridge, engine, audio, openWorld, textSize, setTextSize }: {
   cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; audio: ReturnType<typeof useStoryAudio>; openWorld: () => void; textSize: TextSize; setTextSize: (size: TextSize) => void
 }) {
+  const audioActive = audio.supported && audio.active
   return <header className="st-chat-header">
     <div className="st-chat-header__top">
       <div className="st-chat-header__identity">
@@ -103,12 +104,12 @@ function ConversationHeader({ cartridge, engine, audio, openWorld, textSize, set
         <button
           type="button"
           className="st-audio-button"
-          aria-label={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')}
-          title={t(cartridge.locale, audio.supported ? (audio.muted ? 'audioEnable' : 'audioMute') : 'audioUnavailable')}
-          aria-pressed={!audio.muted}
+          aria-label={t(cartridge.locale, audio.supported ? (audioActive ? 'audioMute' : 'audioEnable') : 'audioUnavailable')}
+          title={t(cartridge.locale, audio.supported ? (audioActive ? 'audioMute' : 'audioEnable') : 'audioUnavailable')}
+          aria-pressed={audioActive}
           onClick={audio.toggle}
           disabled={!audio.supported}
-        ><Icon name={audio.muted ? 'volumeOff' : 'volume'} /></button>
+        ><Icon name={audioActive ? 'volume' : 'volumeOff'} /></button>
         <button className="st-world-button" onClick={openWorld} aria-label={t(cartridge.locale, 'world')} title={t(cartridge.locale, 'world')}><Icon name="book" /><span>{t(cartridge.locale, 'world')}</span></button>
       </div>
     </div>

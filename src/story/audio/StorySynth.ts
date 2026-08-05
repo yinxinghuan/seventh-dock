@@ -32,9 +32,19 @@ export class StorySynth {
   private musicStep = 0
   private ambientNodes: StoppableNode[] = []
   private activeVoices = 0
+  private stateListener: ((running: boolean) => void) | null = null
 
   get supported(): boolean {
     return Boolean(contextConstructor())
+  }
+
+  get running(): boolean {
+    return Boolean(this.unlocked && this.context?.state === 'running')
+  }
+
+  setStateListener(listener: ((running: boolean) => void) | null): void {
+    this.stateListener = listener
+    listener?.(this.running)
   }
 
   configure(theme: StoryAudioTheme, tension: number): void {
@@ -56,9 +66,12 @@ export class StorySynth {
     const context = this.context
     if (!context) return false
     try {
-      if (context.state === 'suspended') await context.resume()
+      const state = String(context.state)
+      if (state !== 'running' && state !== 'closed') await context.resume()
       if (context.state !== 'running') return false
+      this.primeOutput()
       this.unlocked = true
+      this.stateListener?.(true)
       if (!this.ambientNodes.length) this.startAmbient()
       if (this.musicTimer === null) this.startMusic()
       this.applyLevels(.08)
@@ -71,14 +84,14 @@ export class StorySynth {
   setMuted(muted: boolean): void {
     this.muted = muted
     this.applyLevels(.12)
-    if (!muted) void this.unlock()
   }
 
   async setPageVisible(visible: boolean): Promise<void> {
     if (!this.context || !this.unlocked) return
     try {
       if (!visible && this.context.state === 'running') await this.context.suspend()
-      if (visible && !this.muted && this.context.state === 'suspended') await this.context.resume()
+      const state = String(this.context.state)
+      if (visible && !this.muted && state !== 'running' && state !== 'closed') await this.context.resume()
     } catch {
       // Audio is optional and must never affect the story.
     }
@@ -140,6 +153,7 @@ export class StorySynth {
     const Constructor = contextConstructor()
     if (!Constructor || !this.theme) return
     const context = new Constructor()
+    context.onstatechange = () => this.stateListener?.(this.running)
     const master = context.createGain()
     const music = context.createGain()
     const ambient = context.createGain()
@@ -161,6 +175,18 @@ export class StorySynth {
     this.ambient = ambient
     this.sfx = sfx
     this.applyLevels(0)
+  }
+
+  private primeOutput(): void {
+    const context = this.context
+    const output = this.master
+    if (!context || !output) return
+    const buffer = context.createBuffer(1, 1, context.sampleRate)
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.connect(output)
+    source.onended = () => source.disconnect()
+    source.start()
   }
 
   private applyLevels(seconds: number): void {

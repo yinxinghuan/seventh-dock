@@ -51,3 +51,9 @@ The Shell uses `minmax(0,1fr)`, the conversation can shrink, and the player bubb
 ## Final recommendation
 
 Average 4.7/5. Default Aigram continuation and real `head_url` are verified; cross-device cloud restoration and experimental remote chatId creation remain production follow-ups.
+
+## 2026-08-06 音频发布复验
+
+- P1 已修复：挂载阶段不再提前创建 AudioContext；首次真实手势启动 1 个上下文、6 个振荡器与 2 个 buffer source。
+- 静音恢复路径通过：静音进入不创建上下文，点击“开启声音”一次即可启动，`aria-pressed` 与实际运行状态一致。
+- `seventh-dock-audio-unlock-platform-layout-390x844.png`、`320x568.png` 与 `external-guest-390x844.png` 通过；无新增遮挡或横向溢出。评分保持平均 4.7/5，无 P0/P1。
