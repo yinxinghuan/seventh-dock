@@ -36,7 +36,7 @@ export type ImageBlockStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'fai
 export const ITEM_IMAGE_STYLE_VERSION = 2
 export interface StoryBlock { id: string; kind: 'narration' | 'dialogue' | 'check' | 'change' | 'event' | 'summary' | 'image'; text: string; speaker?: string; tone?: string; data?: Record<string, string | number> }
 export interface EntityMetric { label: string; value: string }
-export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; detail?: string; lore?: string; facts?: string[] }
+export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; visited?: boolean; detail?: string; lore?: string; facts?: string[] }
 export interface InventoryItem {
   id: string
   label: string
@@ -61,6 +61,22 @@ export interface StoryDirector {
   maxActiveThreads: number
 }
 
+export type SceneImageTrigger =
+  | 'new-location'
+  | 'rare-item'
+  | 'party-change'
+  | 'chapter-checkpoint'
+  | 'relationship-change'
+  | 'objective-change'
+  | 'skill-outcome'
+
+export interface StoryImageDirector {
+  maxQuietTurns: number
+  softCooldownTurns: number
+  guaranteedTriggers: SceneImageTrigger[]
+  softTriggers: SceneImageTrigger[]
+}
+
 export interface StoryCartridge {
   schemaVersion: 1
   id: CartridgeId
@@ -74,6 +90,8 @@ export interface StoryCartridge {
   theme: ThemeTokens
   audioTheme: StoryAudioTheme
   itemImageDirection?: string
+  sceneImageDirection?: string
+  imageDirector?: StoryImageDirector
   director?: StoryDirector
   statDefinitions: [StatDefinition, StatDefinition, StatDefinition]
   drawerLabels: Record<DrawerId, string>

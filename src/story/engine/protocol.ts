@@ -168,3 +168,8 @@ export function parseStoryProtocol(raw: string, locale: Locale = 'zh'): ParsedSc
     raw,
   }
 }
+
+export function extractSceneImagePrompt(content: string): string | undefined {
+  const match = content.match(/\[image_prompt:\s*(?:"([^"]+)"|'([^']+)'|([^\]\n]+))\s*\]/i)
+  return (match?.[1] ?? match?.[2] ?? match?.[3])?.trim()
+}

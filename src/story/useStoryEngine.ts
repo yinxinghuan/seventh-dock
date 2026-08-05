@@ -97,6 +97,7 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
     const definition = initialPlaces.get(node.id)
     return {
       ...definition, ...node,
+      visited: node.visited ?? Boolean(node.current || node.id.startsWith('map-')),
       detail: node.detail ?? definition?.detail, lore: node.lore ?? definition?.lore, facts: node.facts ?? definition?.facts,
     }
   })

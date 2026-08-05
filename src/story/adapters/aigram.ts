@@ -1,5 +1,6 @@
 import type { AdapterContext, AdapterResult, StoryAdapter, StoryBlock } from '../types'
 import { t } from '../i18n'
+import { extractSceneImagePrompt } from '../engine/protocol'
 
 const endpoint = 'https://chat.aiwaves.tech/aigram/api/game-chat'
 const maxRecentBlocks = 20
@@ -53,6 +54,7 @@ function systemPrompt(context: AdapterContext): string {
     .map((definition) => `${definition.id} (${definition.min}..${definition.max}${definition.maxDelta == null ? '' : `, maximum change per turn ${definition.maxDelta}`})`)
     .join(', ')
   const director = context.cartridge.director
+  const sceneImageDirection = context.cartridge.sceneImageDirection ?? `${context.cartridge.theme.material} story-world editorial illustration`
   const directorContract = director ? `
 DIRECTOR MODE: ${director.mode}
 Fixed world rules that you must preserve:
@@ -91,13 +93,8 @@ Allowed protocol commands, each on its own line:
 Only these widget ids exist: ${statContract}. Never invent another widget id or exceed its range.
 Every newly discovered item should include enough detail, effect, lore, and metrics to make its World drawer page useful. Metrics are short player-readable values, not hidden calculations. For rare or legendary treasure, explain its concrete ability, limitation or cost, and traceable source in visible prose before adding it to inventory. image_prompt must describe the object alone in the cartridge's material language, with no people, lettering, labels, or UI.
 Use clock whenever travel, rest, waiting, or a long action materially advances time. Use map_update only after the player truly reaches or confirms a place.
-Use image_prompt only for a new location, important discovery, relationship turning point, or chapter checkpoint.
+Propose image_prompt for a new location, important discovery, relationship turning point, chapter checkpoint, or another visually distinctive escalation. Aim for roughly one scene image every 2-4 meaningful turns, while skipping routine conversation and never returning more than one scene image_prompt per turn. Depict only people, places, objects and consequences already established in visible prose. Follow this art direction: ${sceneImageDirection}. A local director may add a fallback when you omit one.
 session_end is a resumable chapter note, not a fixed turn limit. Do not use it merely because several turns have passed.`
-}
-
-function extractImagePrompt(content: string): string | undefined {
-  const match = content.match(/\[image_prompt:\s*(?:"([^"]+)"|'([^']+)'|([^\]\n]+))\s*\]/i)
-  return (match?.[1] ?? match?.[2] ?? match?.[3])?.trim()
 }
 
 async function generateTurn(action: string, context: AdapterContext): Promise<AdapterResult> {
@@ -122,7 +119,7 @@ async function generateTurn(action: string, context: AdapterContext): Promise<Ad
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> }
     const content = String(payload.choices?.[0]?.message?.content ?? '').replace(/^```(?:text)?\s*|\s*```$/gi, '').trim()
     if (!content) throw new Error('empty response')
-    return { content, imagePrompt: extractImagePrompt(content) }
+    return { content, imagePrompt: extractSceneImagePrompt(content) }
   } finally {
     window.clearTimeout(timeout)
   }

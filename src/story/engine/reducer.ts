@@ -1,5 +1,6 @@
 import type { ImageBlockStatus, ParsedScene, StoryBlock, StoryCartridge, StorySave } from '../types'
 import { t } from '../i18n'
+import { chooseSceneImage } from './imageDirector'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -11,14 +12,14 @@ export function createInitialSave(cartridge: StoryCartridge, remoteChatId?: stri
     location: cartridge.opening.location, time: cartridge.opening.time, objective: cartridge.opening.objective,
     stats: Object.fromEntries(cartridge.statDefinitions.map((stat) => [stat.id, stat.initial])),
     blocks: [...cartridge.opening.blocks, createImageBlock('image-0', cartridge.opening.location, cartridge.opening.imagePrompt, 'idle')],
-    choices: cartridge.opening.choices, map: cartridge.initialMap.map((node) => ({ ...node, facts: node.facts ? [...node.facts] : undefined })),
+    choices: cartridge.opening.choices, map: cartridge.initialMap.map((node) => ({ ...node, visited: node.visited ?? Boolean(node.current), facts: node.facts ? [...node.facts] : undefined })),
     inventory: cartridge.initialInventory.map((item) => ({ ...item, metrics: item.metrics?.map((metric) => ({ ...metric })), imageStatus: item.imageUrl ? 'ready' : 'idle' })), relationships: [],
     sessionEnded: false,
   }
 }
 
-export function createImageBlock(id: string, location: string, prompt: string, status: ImageBlockStatus, url = ''): StoryBlock {
-  return { id, kind: 'image', text: location, data: { prompt, status, url } }
+export function createImageBlock(id: string, location: string, prompt: string, status: ImageBlockStatus, url = '', metadata?: Record<string, string>): StoryBlock {
+  return { id, kind: 'image', text: location, data: { prompt, status, url, ...metadata } }
 }
 
 export function updateImageBlock(save: StorySave, blockId: string, patch: { status?: ImageBlockStatus; url?: string }): StorySave {
@@ -122,12 +123,13 @@ export function applyParsedScene(
       const existing = next.map.find((node) => node.label === command.location || node.id === command.location)
       if (existing) {
         existing.current = true
+        existing.visited = true
         if (command.connectedTo) existing.connectedTo = command.connectedTo
         if (command.detail) existing.detail = command.detail
         if (command.lore) existing.lore = command.lore
         if (command.facts) existing.facts = command.facts
       } else next.map.push({
-        id: `map-${next.scene}-${index}`, label: command.location, connectedTo: command.connectedTo, current: true,
+        id: `map-${next.scene}-${index}`, label: command.location, connectedTo: command.connectedTo, current: true, visited: true,
         detail: command.detail, lore: command.lore, facts: command.facts,
       })
       next.location = command.location
@@ -163,10 +165,13 @@ export function applyParsedScene(
     }
   })
 
+  const image = chooseSceneImage(save, next, parsed, cartridge, imagePrompt)
   next.blocks = [
     ...next.blocks,
     ...effects,
-    ...(imagePrompt ? [createImageBlock(`image-${next.scene}`, next.location, imagePrompt, 'queued')] : []),
+    ...(image.prompt ? [createImageBlock(`image-${next.scene}`, next.location, image.prompt, 'queued', '', {
+      source: image.source ?? 'director', reason: image.reason ?? 'cadence',
+    })] : []),
   ]
   return next
 }
