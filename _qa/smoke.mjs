@@ -40,8 +40,11 @@ await fs.mkdir(output, { recursive: true })
 const shot = (state) => fileURLToPath(new URL(`${gameId}-${state}-${pass}-platform-layout-${width}x${height}.png`, output))
 const browser = await chromium.launch({ headless: true })
 let imagePayload = null
+let chatPayload = null
+let failNextChat = false
+let chatCalls = 0
 
-async function createPage(hideBanner = true) {
+async function createPage(hideBanner = true, storyMode = 'demo') {
   const page = await browser.newPage({ viewport: { width, height }, locale: 'en-US' })
   await page.route('https://images.aiwaves.tech/alteru/guest-shell.js', (route) => route.fulfill({
     contentType: 'application/javascript',
@@ -57,7 +60,17 @@ async function createPage(hideBanner = true) {
     await new Promise((resolve) => setTimeout(resolve, 700))
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: sceneUrl }) })
   })
+  await page.route('https://chat.aiwaves.tech/aigram/api/game-chat', (route) => {
+    chatCalls += 1
+    chatPayload = route.request().postDataJSON()
+    if (failNextChat) {
+      failNextChat = false
+      return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'The saved world advances beyond the finite demo into a genuinely new situation.\n[widget: alert, value: 22]\n[choices: "Inspect the newly opened passage"|"Ask the party what changed"|"Secure the route before continuing"]' } }] }) })
+  })
   const query = new URLSearchParams({ lang: 'en', avatar_url: avatarUrl, user_name: playerName })
+  if (storyMode) query.set('story_mode', storyMode)
   await page.goto(`http://127.0.0.1:${config.port}/?${query}`, { waitUntil: 'networkidle' })
   await page.evaluate(() => localStorage.clear())
   await page.reload({ waitUntil: 'networkidle' })
@@ -163,5 +176,39 @@ if (width === 390) {
   await external.close()
 }
 
-console.log(`${gameId} ok · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
+failNextChat = true
+chatCalls = 0
+chatPayload = null
+const aiPage = await createPage(true, null)
+await aiPage.getByRole('button', { name: config.enter }).click()
+await aiPage.locator('.st-chat-header__identity i.is-live').waitFor()
+await aiPage.getByRole('button', { name: config.choice }).click()
+await aiPage.getByRole('button', { name: 'Retry this action' }).waitFor()
+await aiPage.waitForTimeout(420)
+const errorReading = await aiPage.evaluate(() => {
+  const feed = document.querySelector('.st-conversation').getBoundingClientRect()
+  const error = document.querySelector('[data-story-error]').getBoundingClientRect()
+  return { feedTop: feed.top, errorTop: error.top, errorBottom: error.bottom, feedBottom: feed.bottom }
+})
+if (errorReading.errorTop < errorReading.feedTop - 2 || errorReading.errorTop > errorReading.feedTop + 96 || errorReading.errorBottom > errorReading.feedBottom) throw new Error(`AI error recovery is not visible: ${JSON.stringify(errorReading)}`)
+await aiPage.screenshot({ path: shot('ai-error') })
+const stateAfterFailure = await aiPage.evaluate((id) => {
+  const saved = JSON.parse(localStorage.getItem(`${id}-save`) || '{}')
+  return saved.worlds?.[id] ?? saved
+}, gameId)
+if (stateAfterFailure.scene !== 0 || stateAfterFailure.blocks.some((block) => block.text.includes('genuinely new situation'))) throw new Error('failed AI action mutated the saved world')
+await aiPage.getByRole('button', { name: 'Retry this action' }).click()
+await aiPage.getByText('The saved world advances beyond the finite demo into a genuinely new situation.', { exact: true }).waitFor()
+await aiPage.waitForTimeout(420)
+const aiReading = await aiPage.evaluate(() => {
+  const feed = document.querySelector('.st-conversation').getBoundingClientRect()
+  const marker = Array.from(document.querySelectorAll('.st-narration')).find((node) => node.textContent?.includes('genuinely new situation'))?.getBoundingClientRect()
+  return { feedTop: feed.top, markerTop: marker?.top, markerBottom: marker?.bottom }
+})
+if (aiReading.markerTop == null || aiReading.markerTop < aiReading.feedTop - 2 || aiReading.markerTop > aiReading.feedTop + 96) throw new Error(`AI continuation is not the reading anchor: ${JSON.stringify(aiReading)}`)
+if (chatCalls !== 2 || !chatPayload?.messages?.[0]?.content?.includes('Only these widget ids exist') || !chatPayload?.messages?.[1]?.content?.includes('WORLD_STATE_JSON')) throw new Error(`Aigram adapter contract failed: ${JSON.stringify({ chatCalls, chatPayload })}`)
+await aiPage.screenshot({ path: shot('ai-continuation') })
+await aiPage.close()
+
+console.log(`${gameId} ok · Aigram continuation/retry · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
 await browser.close()

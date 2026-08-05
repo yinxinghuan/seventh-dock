@@ -26,7 +26,7 @@ Pass. Seventh Dock is now a single game rather than a selectable world inside a 
 
 ### P1 · Product entry exposed template internals — fixed
 
-The baseline showed a two-world Cartridge selector and `Template demo / Persistent world API` engineering controls. The independent build removes both. Runtime mode now follows the production `chat_id` or restored remote session; browser-direct access safely uses the demo adapter without exposing implementation language.
+The baseline showed a two-world Cartridge selector and engineering controls. The independent build removes both. Browser-direct and AlterU production entries now default to Aigram AI; a valid/restored `chat_id` selects the experimental remote session, while `story_mode=demo` is explicit finite QA only.
 
 ### P1 · Shared identity and save boundary — fixed
 
@@ -42,6 +42,7 @@ The Shell uses `minmax(0,1fr)`, the conversation can shrink, and the player bubb
 - Primary actions and all controls meet 44 px targets.
 - Horizontal choices use `onClick`; drag-to-scroll does not submit on pointer down.
 - Opening and generated-turn captures at 390×844 and 320×568 confirm text-first reading anchors; image placeholder/ready transitions do not move the feed. Choice widths differ by label length and stay within 82vw.
+- Aigram default-mode QA forces one HTTP 503, proves scene/state remain unchanged, anchors the visible 44 px retry control, retries the same action with `WORLD_STATE_JSON`, and commits a genuinely new response. Both 390×844 and 320×568 pass.
 - Entry, core play, player avatar, check/state feedback, World drawer, platform layout and external guest states are captured.
 - Debug HTTPS avatar reaches action, protagonist record and gen-image `ref_url`; fallback stays local and is not sent to img2img.
 - Text size: top `Aa` menu, 44 px target, small/standard/large states, 19 px large prose, reload persistence, title/control non-overlap and 320 px overflow assertions pass.
@@ -49,4 +50,4 @@ The Shell uses `minmax(0,1fr)`, the conversation can shrink, and the player bubb
 
 ## Final recommendation
 
-Average 4.7/5. Ready for production Aigram testing of real `head_url`, cloud save restoration and stateful chat continuation.
+Average 4.7/5. Default Aigram continuation and real `head_url` are verified; cross-device cloud restoration and experimental remote chatId creation remain production follow-ups.

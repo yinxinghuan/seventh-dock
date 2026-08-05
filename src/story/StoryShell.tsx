@@ -80,7 +80,7 @@ function ConversationHeader({ cartridge, engine, openWorld, textSize, setTextSiz
   return <header className="st-chat-header">
     <div className="st-chat-header__top">
       <div className="st-chat-header__identity">
-        <div><span>{cartridge.copy.title}</span><i className={engine.mode === 'remote' ? 'is-live' : ''} /><img src={alteruMark} alt="" /></div>
+        <div><span>{cartridge.copy.title}</span><i className={engine.mode !== 'demo' ? 'is-live' : ''} /><img src={alteruMark} alt="" /></div>
         <small>{engine.save.location} · {engine.save.time}</small>
       </div>
       <div className="st-chat-header__actions">
@@ -136,8 +136,8 @@ function ConversationFeed({ cartridge, engine, feedRef, endRef, onScroll, player
     {engine.save.blocks.map((block) => <StoryBlockView block={block} cartridge={cartridge} retryImage={engine.retryImage} player={player} key={block.id} />)}
     {engine.pendingAction && <div className="st-message st-message--player is-pending" data-pending-action><div className="st-message__body"><small>{t(cartridge.locale, 'yourAction')}</small><p>{engine.pendingAction}</p></div><PlayerAvatar profile={player} locale={cartridge.locale} /></div>}
     {engine.progress && <div className="st-typing"><span><i /><i /><i /></span><p>{engine.progress.label}</p></div>}
-    {engine.error && <div className="st-inline-error"><p>{engine.error}</p>{engine.mode === 'remote' && <button onClick={() => engine.setMode('demo')}>{t(cartridge.locale, 'demoFallback')}</button>}</div>}
-    <div className={`st-conversation__end${engine.pendingAction ? ' is-active' : ''}`} ref={endRef} />
+    {engine.error && <div className="st-inline-error" data-story-error><p>{engine.error}</p><div>{engine.canRetry && <button onClick={engine.retryAction}>{t(cartridge.locale, 'retryAction')}</button>}{engine.mode === 'remote' && <button onClick={engine.useAigramFallback}>{t(cartridge.locale, 'aigramFallback')}</button>}</div></div>}
+    <div className={`st-conversation__end${engine.pendingAction || engine.error || engine.save.scene > 0 ? ' is-active' : ''}`} ref={endRef} />
   </div>
 }
 
@@ -236,6 +236,11 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   }, [engine.pendingAction])
 
   useEffect(() => {
+    if (!engine.error) return
+    requestAnimationFrame(() => scrollBlockToReadingStart(feedRef.current?.querySelector<HTMLElement>('[data-story-error]') ?? null))
+  }, [engine.error])
+
+  useEffect(() => {
     const anchor = responseAnchor.current
     if (!anchor || engine.save.blocks.length <= anchor.from) return
     const response = engine.save.blocks.slice(anchor.from).find((block) => block.kind !== 'image' && !(block.kind === 'event' && block.id.startsWith('action-')))
@@ -287,8 +292,9 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
 export default function StoryShell() {
   const [locale, setLocale] = useState<Locale>(() => detectLocale())
   const cartridge = useMemo(() => resolveCartridge(DEFAULT_CARTRIDGE_ID, locale), [locale])
-  const chatId = new URLSearchParams(window.location.search).get('chat_id') || undefined
-  const mode: StoryMode = chatId ? 'remote' : 'demo'
+  const params = new URLSearchParams(window.location.search)
+  const chatId = params.get('chat_id') || undefined
+  const mode: StoryMode = chatId ? 'remote' : params.get('story_mode') === 'demo' ? 'demo' : 'aigram'
   useEffect(() => { document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en' }, [locale])
   const changeLocale = (next: Locale) => { rememberLocale(next); setLocale(next) }
   return <Game key={cartridge.id} cartridge={cartridge} mode={mode} chatId={chatId} onLocaleChange={changeLocale} />

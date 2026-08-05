@@ -5,7 +5,7 @@
 - React 18 + TypeScript + Less + Vite 5，普通响应式 DOM 时间线，无固定比例 Canvas。
 - `base: './'`，所有构建资源可部署到任意子路径；`index.html` 加载远程 `guest-shell.js`。
 - Aigram runtime：`callAigramAPI()` 读取玩家资料，`useGenImage()` 运行时生图，`useGameSave()` 负责 UUID 范围的云端/本地存档。
-- 远程连续剧情通过 stateful story Adapter；没有 chatId 时使用确定性 mock Adapter。
+- 正式入口默认通过 Aigram `game-chat` Adapter 持续生成；带有效 chatId 时使用实验 stateful Adapter，`story_mode=demo` 才使用有限确定性 Mock。
 - 轻量自定义 zh/en i18n，不引入第三方国际化库。
 
 ## 2. 目录结构
@@ -15,7 +15,7 @@
 - `src/story/cartridges/seventhDock.ts`：Seventh Dock 的 zh/en 内容、数值、角色、地图、物品和演示回合。
 - `src/story/cartridges/index.ts`：固定 `DEFAULT_CARTRIDGE_ID='seventh-dock'`；不提供世界选择器。
 - `src/story/engine/`：协议解析、结构化命令和 reducer。
-- `src/story/adapters/`：本地演示与远程连续世界适配器。
+- `src/story/adapters/`：Aigram AI、有限本地演示与实验远程连续世界适配器。
 - `src/story/useStoryEngine.ts`：状态镜像、Aigram 存档、Adapter 调用和串行图片队列。
 - `src/story/usePlayerProfile.ts`：调试覆盖、Aigram 用户资料与默认 `U` 回退。
 - `src/shared/runtime/`、`src/shared/save/`：平台 bridge、生图与存档实现。
@@ -24,11 +24,13 @@
 
 ## 3. 核心模块
 
-`StoryShell` 只解析语言、`chat_id` 和玩家身份，不接受 Cartridge 切换。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。
+`StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。
 
 `useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v4 保存地点、时间、目标、数值、剧情块、地图、物品、关系、语言和远程 chatId。
 
-协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/party_change/session_end 白名单命令。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。远程 Adapter 过滤 thinking，只在完整回合确认后提交状态。
+协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/party_change/session_end 白名单命令，并兼容 AI 偶发缺少角色左方括号的台词格式。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。Aigram Adapter 每轮携带权威状态与最近 20 个非图片剧情块；远程 Adapter 过滤 thinking。两者都只在完整回合确认后提交。
+
+旧 Mock 固定兜底句会在载入时连同前一条无效行动一起移除，scene 计数回退并恢复“继续”选项。AI/远程失败只保留瞬时失败行动，显示可重试错误，不修改存档。
 
 `usePlayerProfile()` 通过 `/note/telegram/user/get/info/by/telegram_id` 读取 `data.name` 与 `head_url`。只有 HTTPS 头像进入 `ref_url`；图片队列在资料请求结束后串行执行，并追加“参考人物是玩家主角、环境与事件仍是主体”的约束。头像与用户名不进入 StorySave。
 
@@ -40,10 +42,10 @@
 
 - 改港区故事、数值、角色、地图、物品和演示回合：编辑 `src/story/cartridges/seventhDock.ts`。
 - 改结构化规则或新增命令：先更新 `src/story/types.ts`，再改 `engine/protocol.ts` 与 `engine/reducer.ts`。
-- 改远程世界接口：编辑 `src/story/adapters/remote.ts`，保持 `StoryAdapter` 合同。
+- 改正式 AI 上下文/提示：编辑 `src/story/adapters/aigram.ts`；改远程世界接口：编辑 `remote.ts`。保持 `StoryAdapter` 合同。
 - 改主角资料或图片身份约束：分别编辑 `usePlayerProfile.ts` 与 `useStoryEngine.ts`；不要把头像字段加入 StorySave。
 - 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留文字优先滚动锚点、时间线图片原位、44 px 触控目标、三档可读字号和 148–310 px 自适应快速回复合同。
 
-`StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block。图片状态更新不在滚动 effect 的依赖中，因此生成中、完成和失败不会抢走正文位置。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
+`StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block；接口错误也拥有自己的阅读锚点。已开始回合保留最多 60dvh/520 px 的阅读余量，保证短回复/错误能滚到视野上部。图片状态不触发滚动。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。

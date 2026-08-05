@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGenImage } from '../shared/runtime/useGenImage'
 import { useGameSave } from '../shared/save/useGameSave'
+import { aigramAdapter } from './adapters/aigram'
 import { mockAdapter } from './adapters/mock'
 import { remoteAdapter } from './adapters/remote'
 import { resolveCartridge } from './cartridges'
@@ -30,16 +31,27 @@ function readLegacyLocal(cartridgeId: string): LegacyStorySave | null {
   } catch { return null }
 }
 
+function repairMockLoop(candidate: LegacyStorySave, cartridge: StoryCartridge): LegacyStorySave {
+  const fallbackIndexes = new Set<number>()
+  candidate.blocks.forEach((block, index) => {
+    if (block.kind === 'narration' && /世界没有关闭，只是把新的线索推到下一页|world does not close; it carries a new clue onto the next page/i.test(block.text)) fallbackIndexes.add(index)
+  })
+  if (fallbackIndexes.size === 0) return candidate
+  const blocks = candidate.blocks.filter((block, index) => !fallbackIndexes.has(index) && !(block.kind === 'event' && block.id.startsWith('action-') && fallbackIndexes.has(index + 1)))
+  return { ...candidate, blocks, scene: Math.max(0, candidate.scene - fallbackIndexes.size), choices: [{ id: `recovered-${candidate.scene}`, label: cartridge.copy.continue }], sessionEnded: false, lastActionId: undefined }
+}
+
 function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge: StoryCartridge, incomingChatId?: string): StorySave {
   if (!candidate || candidate.cartridgeId !== cartridge.id || !Array.isArray(candidate.blocks)) return createInitialSave(cartridge, incomingChatId)
   if (incomingChatId && candidate.remoteChatId && candidate.remoteChatId !== incomingChatId) return createInitialSave(cartridge, incomingChatId)
-  let blocks = candidate.blocks
+  const repaired = repairMockLoop(candidate, cartridge)
+  let blocks = repaired.blocks
   if (!blocks.some((block) => block.kind === 'image')) {
-    const prompt = candidate.imagePrompt || cartridge.opening.imagePrompt
-    const status = candidate.imageStatus === 'generating' ? 'queued' : candidate.imageStatus || (candidate.entered ? 'queued' : 'idle')
-    blocks = [...blocks, createImageBlock(`image-${candidate.scene}`, candidate.location, prompt, status, candidate.imageUrl)]
+    const prompt = repaired.imagePrompt || cartridge.opening.imagePrompt
+    const status = repaired.imageStatus === 'generating' ? 'queued' : repaired.imageStatus || (repaired.entered ? 'queued' : 'idle')
+    blocks = [...blocks, createImageBlock(`image-${repaired.scene}`, repaired.location, prompt, status, repaired.imageUrl)]
   }
-  return { ...candidate, version: 4, locale: candidate.locale ?? cartridge.locale, remoteChatId: incomingChatId || candidate.remoteChatId, blocks } as StorySave
+  return { ...repaired, version: 4, locale: repaired.locale ?? cartridge.locale, remoteChatId: incomingChatId || repaired.remoteChatId, blocks } as StorySave
 }
 
 export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode, incomingChatId?: string, imageIdentity: { ready: boolean; refUrl?: string } = { ready: true }) {
@@ -50,6 +62,7 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const [progress, setProgress] = useState<AdapterProgress | null>(null)
   const [error, setError] = useState('')
   const [pendingAction, setPendingAction] = useState('')
+  const [failedAction, setFailedAction] = useState<{ action: string; locale: Locale } | null>(null)
   const seeded = useRef(false)
   const imageAttempt = useRef('')
   const saveRef = useRef(save)
@@ -128,9 +141,9 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
     if (!action.trim() || busy) return
     const normalizedAction = action.trim()
     const activeCartridge = resolveCartridge(cartridge.id, actionLocale)
-    setBusy(true); setError(''); setPendingAction(normalizedAction); setProgress({ label: t(actionLocale, 'actionWritten'), percent: 8 })
+    setBusy(true); setError(''); setFailedAction(null); setPendingAction(normalizedAction); setProgress({ label: t(actionLocale, 'actionWritten'), percent: 8 })
     try {
-      const adapter = mode === 'remote' ? remoteAdapter : mockAdapter
+      const adapter = mode === 'remote' ? remoteAdapter : mode === 'aigram' ? aigramAdapter : mockAdapter
       const base = localizeKnownState(saveRef.current, cartridge, activeCartridge)
       const result = await adapter.send(normalizedAction, { cartridge: activeCartridge, save: base, actionId: normalizedAction, locale: actionLocale }, setProgress)
       const parsed = parseStoryProtocol(result.content, actionLocale)
@@ -139,10 +152,15 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
       setProgress(null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
+      setFailedAction({ action: normalizedAction, locale: actionLocale })
+      setPendingAction('')
+      setProgress(null)
     } finally { setBusy(false) }
   }, [busy, cartridge, commit, mode])
 
+  const retryAction = useCallback(() => { if (failedAction) void act(failedAction.action, failedAction.locale) }, [act, failedAction])
+  const useAigramFallback = useCallback(() => { setMode('aigram'); setError('') }, [])
   const continueAfterSummary = useCallback(() => commit((current) => ({ ...current, locale: cartridge.locale, sessionEnded: false, choices: [{ id: `continue-${current.scene}`, label: cartridge.copy.continue }] })), [cartridge, commit])
   const retryImage = useCallback((blockId: string) => { imageAttempt.current = ''; commit((current) => updateImageBlock(current, blockId, { status: 'queued' })) }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, enter, act, continueAfterSummary, retryImage, loaded: cloud.loaded, clear: cloud.clear }
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, loaded: cloud.loaded, clear: cloud.clear }
 }

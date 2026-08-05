@@ -1,6 +1,6 @@
 export type CartridgeId = string
 export type DrawerId = 'party' | 'map' | 'inventory' | 'log'
-export type StoryMode = 'demo' | 'remote'
+export type StoryMode = 'demo' | 'aigram' | 'remote'
 export type Locale = 'zh' | 'en'
 
 export interface ThemeTokens {

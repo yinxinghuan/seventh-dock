@@ -98,8 +98,9 @@ export function parseStoryProtocol(raw: string, locale: Locale = 'zh'): ParsedSc
 
   const blocks: StoryBlock[] = []
   const dialogue = /^\[([^\]]+)]\s*\[([^\]]+)](?:\s*\[([^\]]+)])?\s*:\s*["“]?(.*?)["”]?\s*$/
+  const lenientDialogue = /^([^\[\]:]{1,40})\s+\[([^\]]+)](?:\s*\[([^\]]+)])?\s*:\s*["“]?(.*?)["”]?\s*$/
   prose.split(/\n+/).map((line) => line.trim()).filter(Boolean).forEach((line, index) => {
-    const match = line.match(dialogue)
+    const match = line.match(dialogue) ?? line.match(lenientDialogue)
     if (match) {
       blocks.push({ id: uid('line', index, line), kind: 'dialogue', speaker: match[1], tone: match[3] ?? match[2], text: match[4].replace(/["”]$/, '') })
     } else {
