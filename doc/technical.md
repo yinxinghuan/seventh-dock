@@ -42,6 +42,8 @@
 - 改结构化规则或新增命令：先更新 `src/story/types.ts`，再改 `engine/protocol.ts` 与 `engine/reducer.ts`。
 - 改远程世界接口：编辑 `src/story/adapters/remote.ts`，保持 `StoryAdapter` 合同。
 - 改主角资料或图片身份约束：分别编辑 `usePlayerProfile.ts` 与 `useStoryEngine.ts`；不要把头像字段加入 StorySave。
-- 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留时间线图片原位、44 px 触控目标、三档可读字号和窄屏网格收缩合同。
+- 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留文字优先滚动锚点、时间线图片原位、44 px 触控目标、三档可读字号和 148–310 px 自适应快速回复合同。
+
+`StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block。图片状态更新不在滚动 effect 的依赖中，因此生成中、完成和失败不会抢走正文位置。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。

@@ -11,6 +11,7 @@ const configs = {
     port: 4181,
     enter: 'Open the first passage',
     choice: /Inspect the survey marks/,
+    imageChoice: /Ask Mira why she recognizes this cipher/,
     worldImage: 'src/story/img/worlds/seventh-dock.webp',
     otherSave: 'rooftop-apartment-save',
   },
@@ -20,6 +21,7 @@ const configs = {
     port: 4182,
     enter: 'Open the rooftop door',
     choice: /Hear what each resident knows first/,
+    imageChoice: /Have Jo organize the photo timestamps as evidence/,
     worldImage: 'src/story/img/worlds/rooftop-apartment.webp',
     otherSave: 'seventh-dock-save',
   },
@@ -50,8 +52,9 @@ async function createPage(hideBanner = true) {
     contentType: 'image/jpeg',
   }))
   await page.route(sceneUrl, (route) => route.fulfill({ path: path.resolve(config.worldImage), contentType: 'image/webp' }))
-  await page.route('https://chat.aiwaves.tech/aigram/api/gen-image', (route) => {
+  await page.route('https://chat.aiwaves.tech/aigram/api/gen-image', async (route) => {
     imagePayload = route.request().postDataJSON()
+    await new Promise((resolve) => setTimeout(resolve, 700))
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: sceneUrl }) })
   })
   const query = new URLSearchParams({ lang: 'en', avatar_url: avatarUrl, user_name: playerName })
@@ -70,6 +73,15 @@ if (runtimeUuid !== config.uuid) throw new Error(`UUID mismatch: ${runtimeUuid}`
 await page.screenshot({ path: shot('entry') })
 
 await page.getByRole('button', { name: config.enter }).click()
+await page.locator('.st-message-image.is-generating').waitFor()
+const openingReading = await page.evaluate(() => {
+  const feed = document.querySelector('.st-conversation').getBoundingClientRect()
+  const prose = document.querySelector('.st-narration').getBoundingClientRect()
+  const image = document.querySelector('.st-message-image').getBoundingClientRect()
+  return { scrollTop: document.querySelector('.st-conversation').scrollTop, feedTop: feed.top, feedBottom: feed.bottom, proseTop: prose.top, proseBottom: prose.bottom, imageTop: image.top }
+})
+if (openingReading.scrollTop > 4 || openingReading.proseTop < openingReading.feedTop - 1 || openingReading.proseTop >= openingReading.feedBottom || openingReading.imageTop <= openingReading.proseTop) throw new Error(`opening text is not the reading anchor: ${JSON.stringify(openingReading)}`)
+await page.screenshot({ path: shot('opening-reading') })
 await page.waitForFunction(() => document.querySelector('.st-message-image.is-ready'))
 if (imagePayload?.ref_url !== avatarUrl) throw new Error(`avatar ref_url missing: ${JSON.stringify(imagePayload)}`)
 await page.locator('.st-text-size summary').click()
@@ -84,6 +96,8 @@ if (textSize.mode !== 'large' || textSize.prose !== '19px' || textSize.saved !==
 await page.reload({ waitUntil: 'networkidle' })
 await page.addStyleTag({ content: '#alteru-guest-banner{display:none!important}' })
 await page.locator('.st-shell[data-text-size="large"]').waitFor()
+const choiceWidths = await page.locator('.st-quick-replies button').evaluateAll((buttons) => buttons.map((button) => Math.round(button.getBoundingClientRect().width)))
+if (new Set(choiceWidths).size < 2 || Math.max(...choiceWidths) > width * .83) throw new Error(`choice buttons are not content-sized: ${JSON.stringify(choiceWidths)}`)
 const headerLayout = await page.evaluate(() => {
   const title = document.querySelector('.st-chat-header__identity span').getBoundingClientRect()
   const actions = document.querySelector('.st-chat-header__actions').getBoundingClientRect()
@@ -93,11 +107,37 @@ if (headerLayout.titleRight > headerLayout.actionsLeft + 1) throw new Error(`hea
 await page.getByRole('button', { name: config.choice }).click()
 await page.locator('.st-message--player:not(.is-pending) .st-player-avatar img').last().waitFor()
 await page.locator('.st-typing').waitFor({ state: 'hidden' })
+await page.waitForTimeout(360)
+const firstResponseReading = await page.evaluate(() => {
+  const feed = document.querySelector('.st-conversation').getBoundingClientRect()
+  const action = Array.from(document.querySelectorAll('[data-block-id^="action-"]')).at(-1)
+  const response = action?.nextElementSibling
+  const rect = response?.getBoundingClientRect()
+  return { feedTop: feed.top, feedBottom: feed.bottom, responseTop: rect?.top, responseBottom: rect?.bottom, kind: response?.className }
+})
+if (firstResponseReading.responseTop == null || firstResponseReading.responseTop < firstResponseReading.feedTop - 2 || firstResponseReading.responseTop > firstResponseReading.feedTop + 96) throw new Error(`first response text is not the reading anchor: ${JSON.stringify(firstResponseReading)}`)
 const saved = await page.evaluate(({ gameId, otherSave }) => ({
   mine: localStorage.getItem(`${gameId}-save`),
   other: localStorage.getItem(otherSave),
 }), { gameId, otherSave: config.otherSave })
 if (!saved.mine || saved.other) throw new Error(`save isolation failed: ${JSON.stringify(saved)}`)
+
+await page.getByRole('button', { name: config.imageChoice }).click()
+await page.locator('.st-message-image.is-generating').last().waitFor()
+await page.locator('.st-typing').waitFor({ state: 'hidden' })
+await page.waitForTimeout(360)
+const generatedTurnReading = await page.evaluate(() => {
+  const feed = document.querySelector('.st-conversation').getBoundingClientRect()
+  const action = Array.from(document.querySelectorAll('[data-block-id^="action-"]')).at(-1)
+  const response = action?.nextElementSibling
+  const image = Array.from(document.querySelectorAll('.st-message-image')).at(-1)
+  const responseRect = response?.getBoundingClientRect()
+  const imageRect = image?.getBoundingClientRect()
+  return { feedTop: feed.top, responseTop: responseRect?.top, responseBottom: responseRect?.bottom, imageTop: imageRect?.top, imageStatus: image?.className }
+})
+if (generatedTurnReading.responseTop == null || generatedTurnReading.imageTop == null || generatedTurnReading.responseTop < generatedTurnReading.feedTop - 2 || generatedTurnReading.responseTop > generatedTurnReading.feedTop + 64 || generatedTurnReading.imageTop <= generatedTurnReading.responseTop) throw new Error(`generated image displaced its response text: ${JSON.stringify(generatedTurnReading)}`)
+await page.screenshot({ path: shot('generated-turn-reading') })
+await page.locator('.st-message-image.is-ready').last().waitFor()
 
 const avatarBox = await page.locator('.st-message--player:not(.is-pending) .st-player-avatar img').last().boundingBox()
 const layout = await page.evaluate(() => ({
@@ -123,5 +163,5 @@ if (width === 390) {
   await external.close()
 }
 
-console.log(`${gameId} ok · single cartridge · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
+console.log(`${gameId} ok · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
 await browser.close()

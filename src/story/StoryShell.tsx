@@ -104,7 +104,7 @@ function ConversationHeader({ cartridge, engine, openWorld, textSize, setTextSiz
 function InlineSceneImage({ block, cartridge, retry }: { block: StoryBlock; cartridge: StoryCartridge; retry: (id: string) => void }) {
   const status = String(block.data?.status ?? 'idle') as ImageBlockStatus
   const url = String(block.data?.url ?? '')
-  return <figure className={`st-message-image st-message-image--${cartridge.theme.material} is-${status}`}>
+  return <figure className={`st-message-image st-message-image--${cartridge.theme.material} is-${status}`} data-block-id={block.id}>
     {url && status === 'ready'
       ? <img src={url} alt={t(cartridge.locale, 'imageAlt', { name: block.text })} draggable={false} />
       : <div className="st-message-image__placeholder" aria-label={t(cartridge.locale, status === 'failed' ? 'imageFailedAria' : 'imageGeneratingAria')}><img src={cartridge.coverImage} alt="" draggable={false} /><span aria-hidden="true" /></div>}
@@ -118,13 +118,13 @@ function InlineSceneImage({ block, cartridge, retry }: { block: StoryBlock; cart
 
 function StoryBlockView({ block, cartridge, retryImage, player }: { block: StoryBlock; cartridge: StoryCartridge; retryImage: (id: string) => void; player: PlayerProfile }) {
   if (block.kind === 'image') return <InlineSceneImage block={block} cartridge={cartridge} retry={retryImage} />
-  if (block.kind === 'dialogue') return <div className="st-message st-message--character"><div className="st-message__avatar">{block.speaker?.slice(0, 1)}</div><div className="st-message__body"><header><span>{block.speaker}</span><small>{block.tone}</small></header><p>{block.text}</p></div></div>
-  if (block.kind === 'check') return <div className="st-result st-result--check"><div><span>{Number(block.data?.total) >= Number(block.data?.dc) ? 'PASS' : 'MISS'}</span><p>{block.text}</p></div><section><b>{block.data?.roll}</b><i>+</i><b>{block.data?.modifier}</b><i>=</i><strong>{block.data?.total}</strong><small>DC {block.data?.dc}</small></section></div>
-  if (block.kind === 'change') return <div className="st-result st-result--change"><i /><span>{block.text}</span></div>
-  if (block.kind === 'summary') return <section className="st-result st-result--summary"><small>{t(cartridge.locale, 'summary')}</small><h2>{block.text}</h2><p>{t(cartridge.locale, 'notEnding')}</p></section>
-  if (block.kind === 'event' && block.id.startsWith('action-')) return <div className="st-message st-message--player"><div className="st-message__body"><small>{t(cartridge.locale, 'yourAction')}</small><p>{block.text}</p></div><PlayerAvatar profile={player} locale={cartridge.locale} /></div>
-  if (block.kind === 'event') return <div className="st-system-line"><span>{block.text}</span></div>
-  return <div className="st-narration"><p>{block.text}</p></div>
+  if (block.kind === 'dialogue') return <div className="st-message st-message--character" data-block-id={block.id}><div className="st-message__avatar">{block.speaker?.slice(0, 1)}</div><div className="st-message__body"><header><span>{block.speaker}</span><small>{block.tone}</small></header><p>{block.text}</p></div></div>
+  if (block.kind === 'check') return <div className="st-result st-result--check" data-block-id={block.id}><div><span>{Number(block.data?.total) >= Number(block.data?.dc) ? 'PASS' : 'MISS'}</span><p>{block.text}</p></div><section><b>{block.data?.roll}</b><i>+</i><b>{block.data?.modifier}</b><i>=</i><strong>{block.data?.total}</strong><small>DC {block.data?.dc}</small></section></div>
+  if (block.kind === 'change') return <div className="st-result st-result--change" data-block-id={block.id}><i /><span>{block.text}</span></div>
+  if (block.kind === 'summary') return <section className="st-result st-result--summary" data-block-id={block.id}><small>{t(cartridge.locale, 'summary')}</small><h2>{block.text}</h2><p>{t(cartridge.locale, 'notEnding')}</p></section>
+  if (block.kind === 'event' && block.id.startsWith('action-')) return <div className="st-message st-message--player" data-block-id={block.id}><div className="st-message__body"><small>{t(cartridge.locale, 'yourAction')}</small><p>{block.text}</p></div><PlayerAvatar profile={player} locale={cartridge.locale} /></div>
+  if (block.kind === 'event') return <div className="st-system-line" data-block-id={block.id}><span>{block.text}</span></div>
+  return <div className="st-narration" data-block-id={block.id}><p>{block.text}</p></div>
 }
 
 function ConversationFeed({ cartridge, engine, feedRef, endRef, onScroll, player }: {
@@ -134,10 +134,10 @@ function ConversationFeed({ cartridge, engine, feedRef, endRef, onScroll, player
   return <div className="st-conversation" ref={feedRef} onScroll={onScroll}>
     <div className="st-conversation__day"><span>{engine.save.location}</span><small>{engine.save.objective}</small></div>
     {engine.save.blocks.map((block) => <StoryBlockView block={block} cartridge={cartridge} retryImage={engine.retryImage} player={player} key={block.id} />)}
-    {engine.pendingAction && <div className="st-message st-message--player is-pending"><div className="st-message__body"><small>{t(cartridge.locale, 'yourAction')}</small><p>{engine.pendingAction}</p></div><PlayerAvatar profile={player} locale={cartridge.locale} /></div>}
+    {engine.pendingAction && <div className="st-message st-message--player is-pending" data-pending-action><div className="st-message__body"><small>{t(cartridge.locale, 'yourAction')}</small><p>{engine.pendingAction}</p></div><PlayerAvatar profile={player} locale={cartridge.locale} /></div>}
     {engine.progress && <div className="st-typing"><span><i /><i /><i /></span><p>{engine.progress.label}</p></div>}
     {engine.error && <div className="st-inline-error"><p>{engine.error}</p>{engine.mode === 'remote' && <button onClick={() => engine.setMode('demo')}>{t(cartridge.locale, 'demoFallback')}</button>}</div>}
-    <div className="st-conversation__end" ref={endRef} />
+    <div className={`st-conversation__end${engine.pendingAction ? ' is-active' : ''}`} ref={endRef} />
   </div>
 }
 
@@ -153,7 +153,11 @@ function Composer({ cartridge, engine, onAct }: { cartridge: StoryCartridge; eng
   const choices = engine.save.sessionEnded ? [{ id: `continue-${engine.save.scene}`, label: cartridge.copy.continue }] : engine.save.choices
   return <section className="st-composer" aria-label={t(cartridge.locale, 'reply')}>
     <div className="st-quick-replies" ref={repliesRef}>
-      {choices.map((choice, index) => <button key={choice.id} disabled={engine.busy} onClick={() => engine.save.sessionEnded ? engine.continueAfterSummary() : onAct(choice.label)}><small>{String(index + 1).padStart(2, '0')}</small><span>{choice.label}</span><Icon name="arrow" /></button>)}
+      {choices.map((choice, index) => {
+        const visualUnits = Array.from(choice.label).reduce((total, character) => total + (/[^\u0000-\u00ff]/.test(character) ? 2 : 1), 0)
+        const adaptiveWidth = `${Math.min(310, Math.max(148, Math.round(132 + visualUnits * 2.5)))}px`
+        return <button key={choice.id} style={{ '--st-choice-width': adaptiveWidth } as React.CSSProperties} disabled={engine.busy} onClick={() => engine.save.sessionEnded ? engine.continueAfterSummary() : onAct(choice.label)}><small>{String(index + 1).padStart(2, '0')}</small><span>{choice.label}</span><Icon name="arrow" /></button>
+      })}
     </div>
     <form onSubmit={(event) => { event.preventDefault(); submit() }}>
       <Icon name="pen" />
@@ -189,9 +193,9 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
   const feedRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const follow = useRef(true)
+  const responseAnchor = useRef<{ from: number } | null>(null)
+  const wasEntered = useRef(engine.save.entered)
   const hydratedLocale = useRef(false)
-  const latestBlock = engine.save.blocks.at(-1)
-  const latestImageStatus = latestBlock?.kind === 'image' ? String(latestBlock.data?.status ?? '') : ''
   const setTextSize = (size: TextSize) => { localStorage.setItem(TEXT_SIZE_KEY, size); setTextSizeState(size) }
 
   useEffect(() => {
@@ -210,7 +214,38 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
     })
   }
 
-  useEffect(() => { scrollToLatest(engine.busy || Boolean(engine.pendingAction)) }, [engine.busy, engine.pendingAction, engine.save.blocks.length, latestImageStatus])
+  const scrollBlockToReadingStart = (element: HTMLElement | null, behavior: ScrollBehavior = 'smooth') => {
+    const feed = feedRef.current
+    if (!feed || !element) return
+    const top = feed.scrollTop + element.getBoundingClientRect().top - feed.getBoundingClientRect().top - 10
+    feed.scrollTo({ top: Math.max(0, top), behavior })
+    setHasUnread(false)
+  }
+
+  useEffect(() => {
+    if (!wasEntered.current && engine.save.entered) {
+      requestAnimationFrame(() => feedRef.current?.scrollTo({ top: 0, behavior: 'auto' }))
+      setHasUnread(false)
+    }
+    wasEntered.current = engine.save.entered
+  }, [engine.save.entered])
+
+  useEffect(() => {
+    if (!engine.pendingAction) return
+    requestAnimationFrame(() => scrollBlockToReadingStart(feedRef.current?.querySelector<HTMLElement>('[data-pending-action]') ?? null))
+  }, [engine.pendingAction])
+
+  useEffect(() => {
+    const anchor = responseAnchor.current
+    if (!anchor || engine.save.blocks.length <= anchor.from) return
+    const response = engine.save.blocks.slice(anchor.from).find((block) => block.kind !== 'image' && !(block.kind === 'event' && block.id.startsWith('action-')))
+    if (!response) return
+    responseAnchor.current = null
+    requestAnimationFrame(() => {
+      const escapedId = CSS.escape(response.id)
+      scrollBlockToReadingStart(feedRef.current?.querySelector<HTMLElement>(`[data-block-id="${escapedId}"]`) ?? null)
+    })
+  }, [engine.save.blocks.length])
 
   const onScroll = () => {
     const node = feedRef.current
@@ -223,8 +258,8 @@ function Game({ cartridge, mode, chatId, onLocaleChange }: { cartridge: StoryCar
     const nextLocale = detectTextLocale(action, cartridge.locale)
     if (nextLocale !== cartridge.locale) onLocaleChange(nextLocale)
     follow.current = true
+    responseAnchor.current = { from: engine.save.blocks.length }
     engine.act(action, nextLocale)
-    scrollToLatest(true)
   }
 
   useEffect(() => {
