@@ -48,10 +48,34 @@ function repairMockLoop(candidate: LegacyStorySave, cartridge: StoryCartridge): 
   }
 }
 
+function recoverPersistedChoices(candidate: LegacyStorySave, cartridge: StoryCartridge): LegacyStorySave {
+  const existing = candidate.choices ?? []
+  const isGenericFallback = existing.length === 1 && existing[0].label === cartridge.copy.continue
+  if (existing.length > 1 || (existing.length === 1 && !isGenericFallback)) return candidate
+  let lastActionIndex = -1
+  candidate.blocks.forEach((block, index) => { if (block.kind === 'event' && block.id.startsWith('action-')) lastActionIndex = index })
+  const tail = candidate.blocks.slice(lastActionIndex + 1).filter((block) => block.kind !== 'image').map((block) => block.text).join('\n')
+  const parsed = parseStoryProtocol(tail, candidate.locale ?? cartridge.locale)
+  const recovered = parsed.commands.find((command) => command.type === 'choices')
+  if (!recovered || recovered.type !== 'choices' || recovered.choices.length < 2) return candidate
+  const labels = new Set(recovered.choices)
+  const optionLine = /^\s*(?:(?:选项|选择|行动)\s*[一二三四五\dA-Ea-e]+\s*[：:.、)]|(?:\d{1,2}|[A-Ea-e]|[一二三四五])\s*[.、:：)]|[①②③④⑤]|[-*•])\s*(.+?)\s*$/
+  const blocks = candidate.blocks.filter((block, index) => {
+    if (index <= lastActionIndex || block.kind !== 'narration') return true
+    const label = block.text.match(optionLine)?.[1]?.replace(/[。.;；]+$/, '').trim()
+    return !label || !labels.has(label)
+  })
+  return {
+    ...candidate,
+    blocks,
+    choices: recovered.choices.map((label, index) => ({ id: `recovered-choice-${candidate.scene}-${index}`, label })),
+  }
+}
+
 function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge: StoryCartridge, incomingChatId?: string): StorySave {
   if (!candidate || candidate.cartridgeId !== cartridge.id || !Array.isArray(candidate.blocks)) return createInitialSave(cartridge, incomingChatId)
   if (incomingChatId && candidate.remoteChatId && candidate.remoteChatId !== incomingChatId) return createInitialSave(cartridge, incomingChatId)
-  const repaired = repairMockLoop(candidate, cartridge)
+  const repaired = recoverPersistedChoices(repairMockLoop(candidate, cartridge), cartridge)
   let blocks = repaired.blocks
   if (!blocks.some((block) => block.kind === 'image')) {
     const prompt = repaired.imagePrompt || cartridge.opening.imagePrompt
