@@ -3,7 +3,7 @@ import alteruMark from './img/alteru.svg'
 import { DEFAULT_CARTRIDGE_ID, listCartridges, resolveCartridge } from './cartridges'
 import { Icon, type IconName } from './Icons'
 import { detectLocale, detectTextLocale, rememberLocale, t } from './i18n'
-import type { CharacterDefinition, DrawerId, ImageBlockStatus, InventoryItem, Locale, MapNode, RelationshipEvent, StatDefinition, StoryBlock, StoryCartridge, StoryMode } from './types'
+import { ITEM_IMAGE_STYLE_VERSION, type CharacterDefinition, type DrawerId, type ImageBlockStatus, type InventoryItem, type Locale, type MapNode, type RelationshipEvent, type StatDefinition, type StoryBlock, type StoryCartridge, type StoryMode } from './types'
 import { useStoryEngine } from './useStoryEngine'
 import { usePlayerProfile, type PlayerProfile } from './usePlayerProfile'
 import { useStoryAudio } from './audio/useStoryAudio'
@@ -233,15 +233,16 @@ function MapDetail({ node, map, cartridge }: { node: MapNode; map: MapNode[]; ca
   </div>
 }
 
-function ItemDetail({ item, cartridge, generate }: { item: InventoryItem; cartridge: StoryCartridge; generate: (id: string) => void }) {
+function ItemDetail({ item, cartridge }: { item: InventoryItem; cartridge: StoryCartridge }) {
   const status = item.imageStatus ?? (item.imageUrl ? 'ready' : 'idle')
+  const currentImageUrl = item.imageStyleVersion === ITEM_IMAGE_STYLE_VERSION ? item.imageUrl : undefined
   const rarity = item.rarity ?? 'common'
   const statusKey = `itemImage${status[0].toUpperCase()}${status.slice(1)}` as 'itemImageIdle' | 'itemImageQueued' | 'itemImageGenerating' | 'itemImageFailed' | 'itemImageReady'
   const metrics = [{ label: t(cartridge.locale, 'quantity'), value: `× ${item.count}` }, { label: t(cartridge.locale, 'rarity'), value: t(cartridge.locale, rarity === 'legendary' ? 'rarityLegendary' : rarity === 'rare' ? 'rarityRare' : 'rarityCommon') }, ...(item.metrics ?? [])]
   return <div className={`st-world-detail st-world-detail--item is-${rarity}`}>
     <figure className={`st-item-illustration is-${status}`}>
-      {item.imageUrl ? <img src={item.imageUrl} alt={item.label} draggable={false} /> : <div><Icon name="bag" /><span>{item.label}</span></div>}
-      <figcaption><small>{t(cartridge.locale, 'itemIllustration')}</small><p>{t(cartridge.locale, statusKey)}</p><button type="button" onClick={() => generate(item.id)} disabled={status === 'queued' || status === 'generating'}><Icon name={status === 'failed' || status === 'ready' ? 'refresh' : 'image'} />{t(cartridge.locale, status === 'ready' ? 'regenerateItemImage' : status === 'failed' ? 'retry' : 'generateItemImage')}</button></figcaption>
+      {currentImageUrl ? <img src={currentImageUrl} alt={item.label} draggable={false} /> : <div><Icon name="bag" /><span>{item.label}</span></div>}
+      <figcaption><small>{t(cartridge.locale, 'itemIllustration')}</small><p>{t(cartridge.locale, statusKey)}</p></figcaption>
     </figure>
     <DetailSection label={t(cartridge.locale, 'itemMetrics')}><DetailMetrics rows={metrics} /></DetailSection>
     <DetailSection label={t(cartridge.locale, 'itemDescription')}><p>{item.detail ?? t(cartridge.locale, 'noDetails')}</p></DetailSection>
@@ -259,18 +260,23 @@ function WorldDrawer({ active, setActive, cartridge, engine, close, player }: {
   const mapNode = detail?.type === 'map' ? save.map.find((entry) => entry.id === detail.id) : undefined
   const item = detail?.type === 'inventory' ? save.inventory.find((entry) => entry.id === detail.id) : undefined
   const relationship = detail?.type === 'relationship' ? save.relationships.find((entry) => entry.id === detail.id) : undefined
+  const revealingItems = save.inventory.some((entry) => entry.imageStatus === 'queued' || entry.imageStatus === 'generating')
+  const hasCurrentItemImage = save.inventory.some((entry) => entry.imageUrl && entry.imageStyleVersion === ITEM_IMAGE_STYLE_VERSION)
   const detailTitle = detail?.type === 'player' ? player.name : character?.name ?? mapNode?.label ?? item?.label ?? (detail?.type === 'objective' ? t(cartridge.locale, 'currentObjective') : detail?.type === 'system' ? t(cartridge.locale, 'system') : relationship?.actor)
+  useEffect(() => {
+    if (active === 'inventory') engine.prepareInventoryImages()
+  }, [active, engine.prepareInventoryImages])
   return <div className="st-drawer" role="dialog" aria-modal="true" aria-label={t(cartridge.locale, 'worldData')}><button className="st-drawer__scrim" onClick={close} aria-label={t(cartridge.locale, 'closeWorldData')} /><section>
     <header className={detail ? 'is-detail' : ''}>{detail ? <button onClick={() => setDetail(null)} aria-label={t(cartridge.locale, 'back')} title={t(cartridge.locale, 'back')}><Icon name="back" /></button> : <span className="st-drawer__header-spacer" />}<div><small>{detail ? t(cartridge.locale, 'openDetails') : t(cartridge.locale, 'worldRecord')}</small><h2>{detailTitle ?? cartridge.copy.title}</h2></div><button onClick={close} aria-label={t(cartridge.locale, 'close')}><Icon name="close" /></button></header>
     {!detail && <nav className="st-drawer-tabs">{(Object.keys(cartridge.drawerLabels) as DrawerId[]).map((id) => <button className={active === id ? 'is-active' : ''} onClick={() => { setDetail(null); setActive(id) }} key={id}><Icon name={drawerIcons[id]} /><span>{cartridge.drawerLabels[id]}</span></button>)}</nav>}
     {!detail && active === 'party' && <div className="st-roster"><button className="st-entity-row st-roster__player" onClick={() => setDetail({ type: 'player' })}><PlayerAvatar profile={player} locale={cartridge.locale} large /><div><h3>{player.name}</h3><p>{t(cartridge.locale, 'protagonist')}</p></div><strong>{t(cartridge.locale, 'you')}</strong><Icon name="arrow" /></button>{cartridge.characters.map((entry) => <button className="st-entity-row" onClick={() => setDetail({ type: 'character', id: entry.id })} key={entry.id}><div className="st-roster__initial">{entry.name.slice(0, 1)}</div><div><h3>{entry.name}</h3><p>{entry.role}</p><small>{t(cartridge.locale, 'vitality')} {entry.vitality} · {t(cartridge.locale, 'stress')} {entry.stress}</small></div><ul>{entry.skills.slice(0, 2).map((skill) => <li key={skill.id}>{skill.label}<b>+{skill.value}</b></li>)}</ul><Icon name="arrow" /></button>)}</div>}
     {!detail && active === 'map' && <div className="st-map">{save.map.map((node, index) => <button className={`st-entity-row${node.current ? ' is-current' : ''}`} data-connected={Boolean(node.connectedTo)} onClick={() => setDetail({ type: 'map', id: node.id })} key={node.id}><small>{String(index + 1).padStart(2, '0')}</small><span>{node.label}{node.connectedTo && <i>{node.connectedTo}</i>}</span>{node.current && <b>{t(cartridge.locale, 'here')}</b>}<Icon name="arrow" /></button>)}</div>}
-    {!detail && active === 'inventory' && <div className="st-inventory">{save.inventory.map((entry) => <button className={`st-entity-row${entry.rarity ? ` is-${entry.rarity}` : ''}`} onClick={() => setDetail({ type: 'inventory', id: entry.id })} key={entry.id}><div><span>{entry.label}</span>{entry.effect && <small>{entry.effect}</small>}</div><b>× {entry.count}</b><Icon name="arrow" /></button>)}</div>}
+    {!detail && active === 'inventory' && <div className="st-inventory">{revealingItems && !hasCurrentItemImage && <aside className="st-inventory-reveal" aria-live="polite"><Icon name="image" /><div><strong>{cartridge.copy.itemImagingTitle}</strong><p>{cartridge.copy.itemImagingBody}</p></div><i aria-hidden="true" /></aside>}{save.inventory.map((entry) => <button className={`st-entity-row${entry.rarity ? ` is-${entry.rarity}` : ''}`} onClick={() => setDetail({ type: 'inventory', id: entry.id })} key={entry.id}><div><span>{entry.label}</span>{entry.effect && <small>{entry.effect}</small>}</div><b>× {entry.count}</b><Icon name="arrow" /></button>)}</div>}
     {!detail && active === 'log' && <div className="st-log"><button className="st-entity-row" onClick={() => setDetail({ type: 'objective' })}><div><small>{t(cartridge.locale, 'currentObjective')}</small><p>{save.objective}</p></div><Icon name="arrow" /></button>{save.relationships.map((event) => <button className="st-entity-row" onClick={() => setDetail({ type: 'relationship', id: event.id })} key={event.id}><div><small>{event.actor}</small><p>{event.axis} · {t(cartridge.locale, event.delta > 0 ? 'warmer' : 'colder')}</p></div><Icon name="arrow" /></button>)}<button className="st-entity-row" onClick={() => setDetail({ type: 'system' })}><div><small>{t(cartridge.locale, 'system')}</small><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></div><Icon name="arrow" /></button></div>}
     {detail?.type === 'player' && <div className="st-world-detail"><div className="st-world-detail__hero"><PlayerAvatar profile={player} locale={cartridge.locale} large /><div><h3>{player.name}</h3><p>{t(cartridge.locale, 'protagonist')}</p></div></div><DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, ...cartridge.statDefinitions.map((stat) => ({ label: stat.label, value: save.stats[stat.id] ?? stat.initial }))]} /></DetailSection><DetailSection label={t(cartridge.locale, 'currentObjective')}><p>{save.objective}</p></DetailSection></div>}
     {character && <CharacterDetail character={character} relationships={save.relationships} cartridge={cartridge} />}
     {mapNode && <MapDetail node={mapNode} map={save.map} cartridge={cartridge} />}
-    {item && <ItemDetail item={item} cartridge={cartridge} generate={engine.requestItemImage} />}
+    {item && <ItemDetail item={item} cartridge={cartridge} />}
     {detail?.type === 'objective' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'currentObjective')}><p>{save.objective}</p></DetailSection><DetailSection label={t(cartridge.locale, 'currentStatus')}><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></DetailSection></div>}
     {relationship && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'journalDetail')}><p>{relationship.actor} · {relationship.axis}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'currentStatus'), value: t(cartridge.locale, relationship.delta > 0 ? 'warmer' : 'colder') }, { label: t(cartridge.locale, 'yourAction'), value: relationship.source }]} /></div>}
     {detail?.type === 'system' && <div className="st-world-detail"><DetailSection label={t(cartridge.locale, 'system')}><p>{t(cartridge.locale, 'segmentSaved', { n: save.scene + 1 })}</p></DetailSection><DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: save.location }, { label: t(cartridge.locale, 'system'), value: save.time }]} /></div>}

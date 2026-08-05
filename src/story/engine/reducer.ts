@@ -30,11 +30,16 @@ export function updateImageBlock(save: StorySave, blockId: string, patch: { stat
   }
 }
 
-export function updateInventoryItemImage(save: StorySave, itemId: string, patch: { status?: ImageBlockStatus; url?: string }): StorySave {
+export function updateInventoryItemImage(save: StorySave, itemId: string, patch: { status?: ImageBlockStatus; url?: string; styleVersion?: number }): StorySave {
   return {
     ...save,
     inventory: save.inventory.map((item) => item.id === itemId
-      ? { ...item, imageStatus: patch.status ?? item.imageStatus, imageUrl: patch.url ?? item.imageUrl }
+      ? {
+        ...item,
+        imageStatus: patch.status ?? item.imageStatus,
+        imageUrl: patch.url ?? item.imageUrl,
+        imageStyleVersion: patch.styleVersion ?? item.imageStyleVersion,
+      }
       : item),
   }
 }

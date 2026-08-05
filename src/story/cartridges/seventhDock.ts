@@ -23,7 +23,7 @@ const shared = {
 
 export const seventhDock: StoryCartridge = {
   ...shared, locale: 'zh',
-  copy: { title: '第七码头', subtitle: '涨潮前的港城手记', promise: '世界记得你选择了谁，也记得你放弃了谁。', enter: '翻开第一程', continue: '继续这段旅程', customAction: '写下自己的行动' },
+  copy: { title: '第七码头', subtitle: '涨潮前的港城手记', promise: '世界记得你选择了谁，也记得你放弃了谁。', enter: '翻开第一程', continue: '继续这段旅程', customAction: '写下自己的行动', itemImagingTitle: '潮痕正在显影', itemImagingBody: '你摊开行囊，港务纸页开始按这座城的光线与材质记录每件物品。第一幅显影完成后，其余记录会在后台继续。' },
   statDefinitions: [
     { id: 'tide', label: '潮位', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: '补给', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },
@@ -80,7 +80,7 @@ export const seventhDock: StoryCartridge = {
 
 export const seventhDockEn: StoryCartridge = {
   ...shared, locale: 'en',
-  copy: { title: 'Seventh Dock', subtitle: 'A harbor journal before the tide', promise: 'The world remembers whom you chose—and whom you left behind.', enter: 'Open the first passage', continue: 'Continue the journey', customAction: 'Write your own action' },
+  copy: { title: 'Seventh Dock', subtitle: 'A harbor journal before the tide', promise: 'The world remembers whom you chose—and whom you left behind.', enter: 'Open the first passage', continue: 'Continue the journey', customAction: 'Write your own action', itemImagingTitle: 'The tide marks are developing', itemImagingBody: 'Opening your kit lets the harbor folio record each object in this city’s own light and material language. The remaining plates will continue developing in the background.' },
   statDefinitions: [
     { id: 'tide', label: 'Tide', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: 'Supplies', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },

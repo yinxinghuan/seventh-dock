@@ -8,7 +8,7 @@ import { resolveCartridge } from './cartridges'
 import { applyParsedScene, createImageBlock, createInitialSave, localizeKnownState, updateImageBlock, updateInventoryItemImage } from './engine/reducer'
 import { parseStoryProtocol } from './engine/protocol'
 import { t } from './i18n'
-import type { AdapterProgress, InventoryItem, Locale, StoryArchive, StoryCartridge, StoryMode, StorySave } from './types'
+import { ITEM_IMAGE_STYLE_VERSION, type AdapterProgress, type InventoryItem, type Locale, type StoryArchive, type StoryCartridge, type StoryMode, type StorySave } from './types'
 
 type LegacyStorySave = Omit<StorySave, 'version' | 'locale'> & {
   version?: 1 | 2 | 3 | 4
@@ -80,9 +80,17 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
 }
 
 function inventoryImagePrompt(item: InventoryItem, cartridge: StoryCartridge): string {
-  if (item.imagePrompt) return item.imagePrompt
   const direction = cartridge.itemImageDirection ?? 'elegant in-world artifact study with tactile natural materials and restrained directional light'
-  return `A single inventory object from ${cartridge.copy.title}: ${item.label}. ${item.detail ?? ''} ${item.effect ?? ''} ${item.lore ?? ''}. ${direction}. Object only, centered still life, square composition, no people, no hands, no text, no letters, no labels, no logo, no UI.`
+  const content = item.imagePrompt ?? `A single inventory object from ${cartridge.copy.title}: ${item.label}. ${item.detail ?? ''} ${item.effect ?? ''} ${item.lore ?? ''}`
+  return `Create an inventory artifact plate that belongs unmistakably to the same visual world as the reference image. Content brief: ${content}. Art direction: ${direction}. Match the reference image's illustration medium, line treatment, palette, paper or surface texture, lighting contrast, and degree of realism. Use the reference only as an art-direction anchor; do not copy its scene or characters. One object or one tightly grouped item set only, centered still life, square composition, no people, no hands, no text, no letters, no labels, no logo, no UI.`
+}
+
+function publicWorldReference(source: string): string | undefined {
+  try {
+    const url = new URL(source, document.baseURI)
+    if (url.protocol !== 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1') return undefined
+    return url.href
+  } catch { return undefined }
 }
 
 export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode, incomingChatId?: string, imageIdentity: { ready: boolean; refUrl?: string } = { ready: true }) {
@@ -143,6 +151,7 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const queuedSceneImage = save.blocks.find((block) => block.kind === 'image' && block.data?.status === 'queued')
   const queuedItemImage = save.inventory.find((item) => item.imageStatus === 'queued')
   const queuedImageKey = queuedSceneImage ? `scene:${queuedSceneImage.id}` : queuedItemImage ? `item:${queuedItemImage.id}` : ''
+  const itemWorldReference = publicWorldReference(cartridge.coverImage)
 
   useEffect(() => {
     if (!save.entered || !queuedImageKey || imageBusy.current || imageAttempt.current === queuedImageKey) return
@@ -166,10 +175,12 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
               ? `${prompt}. Use the person in the reference image as the player protagonist in this scene. Preserve their recognizable facial features and overall appearance, while adapting clothing, pose, lighting, and camera distance naturally to this fictional world. Keep the environment and story event visually dominant; do not turn the scene into a selfie or portrait.`
               : prompt
             lastImageCallAt.current = Date.now()
-            const url = await generate(isScene ? { prompt: identityPrompt, ref_url: imageIdentity.refUrl } : { prompt: identityPrompt })
+            const url = await generate(isScene
+              ? { prompt: identityPrompt, ref_url: imageIdentity.refUrl }
+              : { prompt: identityPrompt, ref_url: itemWorldReference })
             if (imageAttempt.current === queuedImageKey) commit((current) => isScene
               ? updateImageBlock(current, entityId, { status: 'ready', url })
-              : updateInventoryItemImage(current, entityId, { status: 'ready', url }))
+              : updateInventoryItemImage(current, entityId, { status: 'ready', url, styleVersion: ITEM_IMAGE_STYLE_VERSION }))
             return
           } catch {
             if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 3000 : 8000))
@@ -183,7 +194,7 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
         setImageWorkerTick((tick) => tick + 1)
       }
     })()
-  }, [cartridge, commit, generate, imageIdentity.ready, imageIdentity.refUrl, imageWorkerTick, queuedImageKey, queuedItemImage, queuedSceneImage, save.entered])
+  }, [cartridge, commit, generate, imageIdentity.ready, imageIdentity.refUrl, imageWorkerTick, itemWorldReference, queuedImageKey, queuedItemImage, queuedSceneImage, save.entered])
 
   const enter = useCallback(() => commit((current) => {
     const openingImage = current.blocks.find((block) => block.kind === 'image')
@@ -216,9 +227,19 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const useAigramFallback = useCallback(() => { setMode('aigram'); setError('') }, [])
   const continueAfterSummary = useCallback(() => commit((current) => ({ ...current, locale: cartridge.locale, sessionEnded: false, choices: [{ id: `continue-${current.scene}`, label: cartridge.copy.continue }] })), [cartridge, commit])
   const retryImage = useCallback((blockId: string) => { imageAttempt.current = ''; commit((current) => updateImageBlock(current, blockId, { status: 'queued' })) }, [commit])
-  const requestItemImage = useCallback((itemId: string) => {
+  const prepareInventoryImages = useCallback(() => {
     imageAttempt.current = ''
-    commit((current) => updateInventoryItemImage(current, itemId, { status: 'queued' }))
+    commit((current) => {
+      const needsPreparation = current.inventory.some((item) => !item.imageUrl || item.imageStyleVersion !== ITEM_IMAGE_STYLE_VERSION || item.imageStatus === 'failed')
+      if (!needsPreparation) return current
+      return {
+        ...current,
+        inventory: current.inventory.map((item) => {
+          const needsImage = !item.imageUrl || item.imageStyleVersion !== ITEM_IMAGE_STYLE_VERSION || item.imageStatus === 'failed'
+          return needsImage ? { ...item, imageStyleVersion: undefined, imageStatus: 'queued' as const } : item
+        }),
+      }
+    })
   }, [commit])
-  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, requestItemImage, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
+  return { save, mode, setMode, busy, progress, error, pendingAction, canRetry: Boolean(failedAction), enter, act, retryAction, useAigramFallback, continueAfterSummary, retryImage, prepareInventoryImages, loaded: cloud.loaded && seeded.current, clear: cloud.clear }
 }

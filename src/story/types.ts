@@ -33,6 +33,7 @@ export interface SkillDefinition { id: string; label: string; value: number }
 export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[]; detail?: string; lore?: string }
 export interface Choice { id: string; label: string }
 export type ImageBlockStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed'
+export const ITEM_IMAGE_STYLE_VERSION = 2
 export interface StoryBlock { id: string; kind: 'narration' | 'dialogue' | 'check' | 'change' | 'event' | 'summary' | 'image'; text: string; speaker?: string; tone?: string; data?: Record<string, string | number> }
 export interface EntityMetric { label: string; value: string }
 export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; detail?: string; lore?: string; facts?: string[] }
@@ -48,6 +49,7 @@ export interface InventoryItem {
   imagePrompt?: string
   imageStatus?: ImageBlockStatus
   imageUrl?: string
+  imageStyleVersion?: number
 }
 export interface RelationshipEvent { id: string; actor: string; axis: string; delta: number; source: string }
 
@@ -65,7 +67,10 @@ export interface StoryCartridge {
   locale: Locale
   coverImage: string
   entryImage?: string
-  copy: { title: string; subtitle: string; promise: string; enter: string; continue: string; customAction: string }
+  copy: {
+    title: string; subtitle: string; promise: string; enter: string; continue: string; customAction: string
+    itemImagingTitle: string; itemImagingBody: string
+  }
   theme: ThemeTokens
   audioTheme: StoryAudioTheme
   itemImageDirection?: string
