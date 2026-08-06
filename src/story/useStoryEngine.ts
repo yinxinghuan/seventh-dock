@@ -5,14 +5,16 @@ import { aigramAdapter } from './adapters/aigram'
 import { mockAdapter } from './adapters/mock'
 import { remoteAdapter } from './adapters/remote'
 import { resolveCartridge } from './cartridges'
-import { applyParsedScene, createImageBlock, createInitialSave, localizeKnownState, updateImageBlock, updateInventoryItemImage } from './engine/reducer'
+import { applyParsedScene, createImageBlock, createInitialSave, localizeKnownState, normalizeCharacterState, updateImageBlock, updateInventoryItemImage } from './engine/reducer'
 import { parseStoryProtocol } from './engine/protocol'
 import { t } from './i18n'
 import { ITEM_IMAGE_STYLE_VERSION, type AdapterProgress, type InventoryItem, type Locale, type StoryArchive, type StoryCartridge, type StoryMode, type StorySave } from './types'
 
-type LegacyStorySave = Omit<StorySave, 'version' | 'locale'> & {
-  version?: 1 | 2 | 3 | 4
+type LegacyStorySave = Omit<StorySave, 'version' | 'locale' | 'characters' | 'partyMemberIds'> & {
+  version?: 1 | 2 | 3 | 4 | 5
   locale?: Locale
+  characters?: StorySave['characters']
+  partyMemberIds?: StorySave['partyMemberIds']
   imageUrl?: string
   imageStatus?: 'idle' | 'queued' | 'generating' | 'ready' | 'failed'
   imagePrompt?: string
@@ -101,7 +103,11 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
       detail: node.detail ?? definition?.detail, lore: node.lore ?? definition?.lore, facts: node.facts ?? definition?.facts,
     }
   })
-  return { ...repaired, version: 4, locale: repaired.locale ?? cartridge.locale, remoteChatId: incomingChatId || repaired.remoteChatId, blocks, inventory, map } as StorySave
+  const characterState = normalizeCharacterState(repaired, cartridge)
+  return {
+    ...repaired, ...characterState, version: 5, locale: repaired.locale ?? cartridge.locale,
+    remoteChatId: incomingChatId || repaired.remoteChatId, blocks, inventory, map,
+  } as StorySave
 }
 
 function inventoryImagePrompt(item: InventoryItem, cartridge: StoryCartridge): string {

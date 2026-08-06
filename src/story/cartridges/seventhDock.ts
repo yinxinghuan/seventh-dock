@@ -6,6 +6,7 @@ const entryImage = new URL('../img/worlds/seventh-dock-entry.webp', import.meta.
 const shared = {
   schemaVersion: 1 as const,
   id: 'seventh-dock',
+  initialPartyMemberIds: ['mira', 'oren', 'sai'],
   coverImage,
   entryImage,
   theme: { outer: '#071113', surface: '#0c1a1d', paper: '#d7d8cb', ink: '#1e2929', muted: '#718184', accent: '#3d7c82', danger: '#b6603c', gold: '#d3a653', material: 'harbor' as const },

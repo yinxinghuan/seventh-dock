@@ -27,11 +27,11 @@
 
 `StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。721 px 以上 Shell 最大 960 px；正文、快速回复和输入区按 Shell 自身 `100%` 计算 680 px 中心阅读列，不能用 `100vw` 参与内部留白。页眉中心轴最大 760 px，抽屉与 Shell 同宽。
 
-`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v4 保存地点、时间、目标、数值、剧情块、地图、物品、关系、语言和远程 chatId。
+`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v5 保存地点、时间、目标、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、语言和远程 chatId。弥拉、奥伦和赛以稳定 ID 进入初始小队；新角色采用合并，只有明确离队命令才能移除。
 
 灾难、昏迷和任务失败目前是可继续的叙事后果，不会由前端自动删档；`session_end` 只是可恢复的章节节点。玩家可在“世界 → 日志 → 系统”两次确认从头开始。`restartWorld()` 只以本作开场状态覆盖 Seventh Dock 的本地/Aigram 存档，移除实验 remote chat 绑定，并使重置前尚未返回的场景图结果失效；AI 回合进行中入口禁用。
 
-协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/party_change/session_end 白名单命令，并兼容弯引号/全角 choice 分隔符、正文末尾带提示的编号/项目符号行动，以及 AI 偶发缺少角色左方括号的台词格式。恢复的自然语言行动从正文去重并写入真实按钮；没有可信选择时保持空数组，不再由 Reducer 补通用继续。若 `session_end` 与具体行动同时出现，Composer 保留具体行动并提交准确按钮文字；只有没有行动的真正章节节点显示单一继续。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。Aigram Adapter 每轮携带权威状态与最近 20 个非图片剧情块；远程 Adapter 过滤 thinking，并在每轮追加精确三选项格式合同。两者都只在完整回合确认后提交。
+协议解析器只接受 choices/widget/skill_check/state/map_update/inventory/reputation/character_update/party_change/session_end 白名单命令，并兼容弯引号/全角 choice 分隔符、正文末尾带提示的编号/项目符号行动，以及 AI 偶发缺少角色左方括号的台词格式。恢复的自然语言行动从正文去重并写入真实按钮；没有可信选择时保持空数组，不再由 Reducer 补通用继续。若 `session_end` 与具体行动同时出现，Composer 保留具体行动并提交准确按钮文字；只有没有行动的真正章节节点显示单一继续。数值按 Cartridge 的 min/max 夹紧；未知命令不进入 UI 或存档。Aigram Adapter 每轮携带完整当前小队、最近已认识角色和最近 20 个非图片剧情块；远程 Adapter 同样重申权威世界 JSON、过滤 thinking，并追加精确三选项格式合同。两者都只在完整回合确认后提交。
 
 旧 Mock 固定兜底句会在载入时连同前一条无效行动一起移除，scene 计数回退并恢复“继续”选项。若旧存档当前为空或只剩通用继续，`recoverPersistedChoices()` 会从最近一轮正文恢复可信编号/项目符号行动、去掉重复列表并重新持久化，已有用户无需清档。AI/远程失败只保留瞬时失败行动，显示可重试错误，不修改存档。
 
