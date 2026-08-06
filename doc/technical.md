@@ -37,7 +37,7 @@
 
 `usePlayerProfile()` 通过 `/note/telegram/user/get/info/by/telegram_id` 读取 `data.name` 与 `head_url`。只有 HTTPS 头像进入 `ref_url`；图片队列在资料请求结束后串行执行，并追加“参考人物是玩家主角、环境与事件仍是主体”的约束。头像与用户名不进入 StorySave。
 
-场景出图采用 AI 提议优先、本地 `imageDirector` 兜底。Aigram 与 remote Adapter 都会提取 `[image_prompt]`；缺失时，`engine/imageDirector.ts` 按首次抵达、稀有物品、队伍变化和章节节点强制补图，关系/目标/检定变化使用 2 回合冷却，连续 4 个有效回合无图时按可见结果兜底。`MapNode.visited` 区分首次抵达与回访；每轮最多追加一个带 `source/reason` 的内联图片块，仍进入原有严格串行 worker。
+场景出图采用 AI 提议时机、本地 `imageDirector` 构建内容的结构。Aigram 与 remote Adapter 都会提取 `[image_prompt]`，但最终 prompt 以当前地点和本轮可见事件重建，避免第七码头开场构图反复渗入后续场景。AI 未提议时，`engine/imageDirector.ts` 按首次抵达、稀有物品、队伍变化和章节节点强制补图，关系/目标/检定变化使用 2 回合冷却，连续 4 个有效回合无图时按可见结果兜底。开场 prompt 只用于 scene 0；`MapNode.visited` 区分首次抵达与回访；每轮最多追加一个带 `source/reason` 的内联图片块，仍进入严格串行 worker。
 
 语言优先级为 query `lang`、存档和浏览器系统；明确中文/英文自由输入会切换后续 Shell、Cartridge 内容与远程回复约束，历史块保持原文。
 
@@ -59,5 +59,5 @@
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。
 - 改灾难、终局或重置语义：先为 `StorySave` 增加明确终局状态，再同步 reducer、Composer 和 `restartWorld()`；不能根据 AI 旁白中的“死亡”字样直接清档。
-- 世界实体字段位于 `types.ts`，协议由 `protocol.ts` 解析、`reducer.ts` 原子写入；切到行囊时，`useStoryEngine.prepareInventoryImages()` 自动把缺图、失败或旧 `imageStyleVersion` 的物品加入与剧情图共用的串行 worker。物品提示始终合并 `itemImageDirection`，线上以本作 `coverImage` 的公网 HTTPS URL 作为风格 `ref_url`；状态、URL 与画风版本保存在 `InventoryItem`。旧画风 URL 在重绘时保留但不展示，新图成功后再原子替换。题材内容和首次显影文案统一在 `seventhDock.ts` 配置。
+- 世界实体字段位于 `types.ts`，协议由 `protocol.ts` 解析、`reducer.ts` 原子写入；切到行囊时，`useStoryEngine.prepareInventoryImages()` 自动把缺图、失败或旧 `imageStyleVersion` 的物品加入与剧情图共用的串行 worker。物品提示始终合并 `itemImageDirection`，并使用纯文字 txt2img，不再传入 `coverImage` 风格参考，同时排除封面/开场的地点、构图和道具；状态、URL 与画风版本保存在 `InventoryItem`。旧画风 URL 在重绘时保留但不展示，新图成功后再原子替换。题材内容和首次显影文案统一在 `seventhDock.ts` 配置。
 - 恢复旧存档时按稳定 id 补齐 Cartridge 新增的说明字段，同时保留旧数量、地点状态和已生成图片；无需删档重开。

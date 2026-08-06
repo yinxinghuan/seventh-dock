@@ -80,9 +80,17 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
   const repaired = recoverPersistedChoices(repairMockLoop(candidate, cartridge), cartridge)
   let blocks = repaired.blocks
   if (!blocks.some((block) => block.kind === 'image')) {
-    const prompt = repaired.imagePrompt || cartridge.opening.imagePrompt
-    const status = repaired.imageStatus === 'generating' ? 'queued' : repaired.imageStatus || (repaired.entered ? 'queued' : 'idle')
-    blocks = [...blocks, createImageBlock(`image-${repaired.scene}`, repaired.location, prompt, status, repaired.imageUrl)]
+    const legacyPrompt = repaired.imagePrompt?.trim() ?? ''
+    const canRestoreImage = repaired.scene === 0 || Boolean(legacyPrompt || repaired.imageUrl)
+    if (canRestoreImage) {
+      const prompt = legacyPrompt || (repaired.scene === 0 ? cartridge.opening.imagePrompt : '')
+      const status = repaired.imageUrl
+        ? 'ready'
+        : repaired.imageStatus === 'generating'
+          ? 'queued'
+          : repaired.imageStatus || (repaired.entered && prompt ? 'queued' : 'idle')
+      blocks = [...blocks, createImageBlock(`image-${repaired.scene}`, repaired.location, prompt, status, repaired.imageUrl)]
+    }
   }
   const initialItems = new Map(cartridge.initialInventory.map((item) => [item.id, item]))
   const inventory = (repaired.inventory ?? cartridge.initialInventory).map((item) => {
@@ -113,15 +121,7 @@ function normalizeSave(candidate: LegacyStorySave | null | undefined, cartridge:
 function inventoryImagePrompt(item: InventoryItem, cartridge: StoryCartridge): string {
   const direction = cartridge.itemImageDirection ?? 'elegant in-world artifact study with tactile natural materials and restrained directional light'
   const content = item.imagePrompt ?? `A single inventory object from ${cartridge.copy.title}: ${item.label}. ${item.detail ?? ''} ${item.effect ?? ''} ${item.lore ?? ''}`
-  return `Create an inventory artifact plate that belongs unmistakably to the same visual world as the reference image. Content brief: ${content}. Art direction: ${direction}. Match the reference image's illustration medium, line treatment, palette, paper or surface texture, lighting contrast, and degree of realism. Use the reference only as an art-direction anchor; do not copy its scene or characters. One object or one tightly grouped item set only, centered still life, square composition, no people, no hands, no text, no letters, no labels, no logo, no UI.`
-}
-
-function publicWorldReference(source: string): string | undefined {
-  try {
-    const url = new URL(source, document.baseURI)
-    if (url.protocol !== 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1') return undefined
-    return url.href
-  } catch { return undefined }
+  return `Create an inventory artifact plate for ${cartridge.copy.title}. Content brief: ${content}. Art direction: ${direction}. Follow only this text-defined medium, line treatment, palette, surface texture, lighting contrast, and degree of realism. Do not borrow any location, landmark, character, composition, or prop from the game's cover or opening scene. One object or one tightly grouped item set only, centered still life, square composition, no people, no hands, no text, no letters, no labels, no logo, no UI.`
 }
 
 export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode, incomingChatId?: string, imageIdentity: { ready: boolean; refUrl?: string } = { ready: true }) {
@@ -182,7 +182,6 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const queuedSceneImage = save.blocks.find((block) => block.kind === 'image' && block.data?.status === 'queued')
   const queuedItemImage = save.inventory.find((item) => item.imageStatus === 'queued')
   const queuedImageKey = queuedSceneImage ? `scene:${queuedSceneImage.id}` : queuedItemImage ? `item:${queuedItemImage.id}` : ''
-  const itemWorldReference = publicWorldReference(cartridge.coverImage)
 
   useEffect(() => {
     if (!save.entered || !queuedImageKey || imageBusy.current || imageAttempt.current === queuedImageKey) return
@@ -208,7 +207,7 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
             lastImageCallAt.current = Date.now()
             const url = await generate(isScene
               ? { prompt: identityPrompt, ref_url: imageIdentity.refUrl }
-              : { prompt: identityPrompt, ref_url: itemWorldReference })
+              : { prompt: identityPrompt })
             if (imageAttempt.current === queuedImageKey) commit((current) => isScene
               ? updateImageBlock(current, entityId, { status: 'ready', url })
               : updateInventoryItemImage(current, entityId, { status: 'ready', url, styleVersion: ITEM_IMAGE_STYLE_VERSION }))
@@ -225,7 +224,7 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
         setImageWorkerTick((tick) => tick + 1)
       }
     })()
-  }, [cartridge, commit, generate, imageIdentity.ready, imageIdentity.refUrl, imageWorkerTick, itemWorldReference, queuedImageKey, queuedItemImage, queuedSceneImage, save.entered])
+  }, [cartridge, commit, generate, imageIdentity.ready, imageIdentity.refUrl, imageWorkerTick, queuedImageKey, queuedItemImage, queuedSceneImage, save.entered])
 
   const enter = useCallback(() => commit((current) => {
     const openingImage = current.blocks.find((block) => block.kind === 'image')
