@@ -35,9 +35,9 @@
 
 旧 Mock 固定兜底句会在载入时连同前一条无效行动一起移除，scene 计数回退并恢复“继续”选项。若旧存档当前为空或只剩通用继续，`recoverPersistedChoices()` 会从最近一轮正文恢复可信编号/项目符号行动、去掉重复列表并重新持久化，已有用户无需清档。AI/远程失败只保留瞬时失败行动，显示可重试错误，不修改存档。
 
-`usePlayerProfile()` 通过 `/note/telegram/user/get/info/by/telegram_id` 读取 `data.name` 与 `head_url`。只有 HTTPS 头像进入 `ref_url`；图片队列在资料请求结束后串行执行，并追加“参考人物是玩家主角、环境与事件仍是主体”的约束。头像与用户名不进入 StorySave。
+`usePlayerProfile()` 通过 `/note/telegram/user/get/info/by/telegram_id` 读取 `data.name` 与 `head_url`。只有人物中近景会把 HTTPS 头像作为 `ref_url`；环境、建筑、远景和空镜使用纯文字生成，避免人物参考图锁定空间构图。头像与用户名不进入 StorySave。
 
-场景出图采用 AI 提议时机、本地 `imageDirector` 构建内容的结构。Aigram 与 remote Adapter 都会提取 `[image_prompt]`，但最终 prompt 以当前地点和本轮可见事件重建，避免第七码头开场构图反复渗入后续场景。AI 未提议时，`engine/imageDirector.ts` 按首次抵达、稀有物品、队伍变化和章节节点强制补图，关系/目标/检定变化使用 2 回合冷却，连续 4 个有效回合无图时按可见结果兜底。开场 prompt 只用于 scene 0；`MapNode.visited` 区分首次抵达与回访；每轮最多追加一个带 `source/reason` 的内联图片块，仍进入严格串行 worker。
+场景出图采用 AI 提议 + 本地 v3 导演结构。Aigram 与 remote Adapter 提取 `[image_prompt]`；导演保留与本轮正文一致的具体镜头，再叠加当前可见剧情、最新地点和统一画风。命中第七码头开场残留词的提议会被丢弃；残留词只在本地检测，不作为否定清单发送给模型。旧存档中未完成的 v1/v2 图片任务会升级为 v3，已完成历史图不自动重画。AI 未提议时，`engine/imageDirector.ts` 按首次抵达、稀有物品、队伍变化和章节节点强制补图，关系/目标/检定变化使用 2 回合冷却，连续 4 个有效回合无图时按可见结果兜底。开场 prompt 只用于 scene 0；`MapNode.visited` 区分首次抵达与回访；每轮最多追加一个带 `source/reason/promptVersion` 的内联图片块，仍进入严格串行 worker。
 
 语言优先级为 query `lang`、存档和浏览器系统；明确中文/英文自由输入会切换后续 Shell、Cartridge 内容与远程回复约束，历史块保持原文。
 

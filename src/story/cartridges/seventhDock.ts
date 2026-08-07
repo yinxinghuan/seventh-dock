@@ -12,6 +12,7 @@ const shared = {
   theme: { outer: '#071113', surface: '#0c1a1d', paper: '#d7d8cb', ink: '#1e2929', muted: '#718184', accent: '#3d7c82', danger: '#b6603c', gold: '#d3a653', material: 'harbor' as const },
   itemImageDirection: 'archival harbor field-guide object study, weathered brass, salt-stained canvas and dark teal enamel, soft rust-colored lantern light, tactile editorial realism',
   sceneImageDirection: 'cinematic editorial travel-journal illustration of a fictional old port, salt-stained paper texture, muted teal and rust palette, wet stone, canvas sails and warm lantern light, grounded human scale',
+  sceneImageAvoid: 'the wide establishing view of Quay Seven, the opening tide gauges, the same canvas-sail skyline, or an empty misty quay composition',
   imageDirector: {
     maxQuietTurns: 4,
     softCooldownTurns: 2,
