@@ -322,6 +322,8 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
   const [worldOpen, setWorldOpen] = useState(false)
   const [worldTab, setWorldTab] = useState<DrawerId>('party')
   const [hasUnread, setHasUnread] = useState(false)
+  const [showResumeLatest, setShowResumeLatest] = useState(false)
+  const [confirmResumeRestart, setConfirmResumeRestart] = useState(false)
   const [textSize, setTextSizeState] = useState<TextSize>(() => readTextSize())
   const feedRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -329,6 +331,7 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
   const responseAnchor = useRef<{ from: number } | null>(null)
   const wasEntered = useRef(engine.save.entered)
   const hydratedLocale = useRef(false)
+  const restoredSaveChecked = useRef(false)
   const audioInitialized = useRef(false)
   const audioBlockCount = useRef(0)
   const readyAudioImages = useRef<Set<string>>(new Set())
@@ -341,6 +344,12 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
     const explicit = new URLSearchParams(window.location.search).get('lang')
     if (explicit !== 'zh' && explicit !== 'en' && engine.save.locale !== cartridge.locale) onLocaleChange(engine.save.locale)
   }, [cartridge.locale, engine.loaded, engine.save.locale, onLocaleChange])
+
+  useEffect(() => {
+    if (!engine.loaded || restoredSaveChecked.current) return
+    restoredSaveChecked.current = true
+    setShowResumeLatest(engine.save.scene > 0)
+  }, [engine.loaded, engine.save.scene])
 
   const scrollToLatest = (force = false) => {
     if (!force && !follow.current) { setHasUnread(true); return }
@@ -437,6 +446,7 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (showResumeLatest) return
       if (event.key === 'Escape') setWorldOpen(false)
       if (event.key.toLowerCase() === 'w' && !(event.target instanceof HTMLInputElement)) setWorldOpen(true)
       const index = Number(event.key) - 1
@@ -444,13 +454,19 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [engine.save.choices, engine.busy])
+  }, [engine.save.choices, engine.busy, showResumeLatest])
 
   if (!engine.loaded) return <div className="st-loading" style={setCssTheme(cartridge)}><i /><span>{t(cartridge.locale, 'restoring')}</span></div>
   if (!engine.save.entered) return <Entry cartridge={cartridge} onEnter={() => { audio.cue('open'); engine.enter() }} onSelect={onSelect} mode={engine.mode} setMode={engine.setMode} hasSave={engine.save.scene > 0} remoteAvailable={Boolean(engine.save.remoteChatId)} />
   return <main className={`st-shell st-shell--${cartridge.theme.material}`} data-text-size={textSize} style={setCssTheme(cartridge)}>
     <ConversationHeader cartridge={cartridge} engine={engine} audio={audio} openWorld={() => setWorldOpen(true)} textSize={textSize} setTextSize={setTextSize} />
     <ConversationFeed cartridge={cartridge} engine={engine} feedRef={feedRef} endRef={endRef} onScroll={onScroll} player={player} />
+    {showResumeLatest && <div className="st-resume-dialog" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="st-resume-title">
+      <small>{t(cartridge.locale, confirmResumeRestart ? 'startOver' : 'resumeLatestTitle')}</small><h2 id="st-resume-title">{cartridge.copy.title}</h2><p>{t(cartridge.locale, confirmResumeRestart ? 'startOverWarning' : 'resumeLatestDescription')}</p>
+      {!confirmResumeRestart ? <><button type="button" className="st-resume-dialog__primary" autoFocus onClick={() => { setShowResumeLatest(false); follow.current = true; scrollToLatest(true) }}>{t(cartridge.locale, 'resumeLatestAction')}<Icon name="arrow" /></button>
+      <button type="button" className="st-resume-dialog__review" onClick={() => setConfirmResumeRestart(true)}>{t(cartridge.locale, 'resumeFromStart')}</button></> : <><button type="button" className="st-resume-dialog__danger" onClick={() => { setShowResumeLatest(false); setConfirmResumeRestart(false); engine.restartWorld() }}>{t(cartridge.locale, 'startOverConfirm')}</button>
+      <button type="button" className="st-resume-dialog__review" autoFocus onClick={() => setConfirmResumeRestart(false)}>{t(cartridge.locale, 'startOverCancel')}</button></>}
+    </section></div>}
     {hasUnread && <button className="st-new-content" onClick={() => { follow.current = true; scrollToLatest(true) }}>{t(cartridge.locale, 'newContent')}<Icon name="arrow" /></button>}
     <Composer cartridge={cartridge} engine={engine} onAct={act} />
     {worldOpen && <WorldDrawer active={worldTab} setActive={setWorldTab} cartridge={cartridge} engine={engine} close={() => setWorldOpen(false)} player={player} />}

@@ -55,7 +55,7 @@
 - 改界面结构与视觉：编辑 `StoryShell.tsx`、`story.less` 和 `doc/visual.md`；保留文字优先滚动锚点、时间线图片原位、44 px 触控目标、三档可读字号和 148–310 px 自适应快速回复合同。
 - 改音色、节奏或数值张力：先改 `seventhDock.ts` 的 `audioTheme`；只有新增跨题材事件音色时才改 `audio/StorySynth.ts`。
 
-`StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block；接口错误也拥有自己的阅读锚点。已开始回合保留最多 60dvh/520 px 的阅读余量，保证短回复/错误能滚到视野上部。图片状态不触发滚动。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
+`StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；首次 hydration 若恢复到 `scene > 0`，只在本次打开显示恢复弹窗。“继续游戏”复用末尾锚点滚动到 `scrollHeight`；“重新开始”在同一弹窗二次确认后调用 `restartWorld()`。提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block；接口错误也拥有自己的阅读锚点。已开始回合保留最多 60dvh/520 px 的阅读余量，保证短回复/错误能滚到视野上部。图片状态不触发滚动。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。
 - 改灾难、终局或重置语义：先为 `StorySave` 增加明确终局状态，再同步 reducer、Composer 和 `restartWorld()`；不能根据 AI 旁白中的“死亡”字样直接清档。
