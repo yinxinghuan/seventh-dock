@@ -58,6 +58,7 @@
 `StoryShell` 为每个 block 标记稳定 id。首次进入将时间线置顶；首次 hydration 若恢复到 `scene > 0`，只在本次打开显示恢复弹窗。“继续游戏”复用末尾锚点滚动到 `scrollHeight`；“重新开始”在同一弹窗二次确认后调用 `restartWorld()`。提交时将 pending 行移到阅读起点；完整回复入列后定位本轮首个非图片、非玩家行动 block；接口错误也拥有自己的阅读锚点。已开始回合保留最多 60dvh/520 px 的阅读余量，保证短回复/错误能滚到视野上部。图片状态不触发滚动。快速回复根据中英文视觉字符数计算目标宽度，CSS 再以 `82vw` 和 390 px 封顶。
 - 改海报/母图：更新对应资源及 `doc/poster-source.md`，正式海报仍必须 transit 生成且英文-only。
 - 新建另一款游戏：从母版生成独立 repo/UUID/save key/poster，而不是在本项目重新加入 Cartridge 选择器。
+- `worker/index.js` 只提供自托管部署所需的 `/api/health`；剧情、存档与生图仍走既有 Aigram 能力，不在该 worker 建立第二套业务状态。
 - 改灾难、终局或重置语义：先为 `StorySave` 增加明确终局状态，再同步 reducer、Composer 和 `restartWorld()`；不能根据 AI 旁白中的“死亡”字样直接清档。
 - 世界实体字段位于 `types.ts`，协议由 `protocol.ts` 解析、`reducer.ts` 原子写入；切到行囊时，`useStoryEngine.prepareInventoryImages()` 自动把缺图、失败或旧 `imageStyleVersion` 的物品加入与剧情图共用的串行 worker。物品提示始终合并 `itemImageDirection`，并使用纯文字 txt2img，不再传入 `coverImage` 风格参考，同时排除封面/开场的地点、构图和道具；状态、URL 与画风版本保存在 `InventoryItem`。旧画风 URL 在重绘时保留但不展示，新图成功后再原子替换。题材内容和首次显影文案统一在 `seventhDock.ts` 配置。
 - 恢复旧存档时按稳定 id 补齐 Cartridge 新增的说明字段，同时保留旧数量、地点状态和已生成图片；无需删档重开。
