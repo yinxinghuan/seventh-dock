@@ -1,7 +1,51 @@
-import type { StoryCartridge, StoryImageDirector } from '../types'
+import type { StoryCartridge, StoryDangerDirector, StoryDirector, StoryImageDirector } from '../types'
 
 const coverImage = new URL('../img/worlds/seventh-dock.webp', import.meta.url).href
 const entryImage = new URL('../img/worlds/seventh-dock-entry.webp', import.meta.url).href
+
+function storyDirector(locale: 'zh' | 'en'): StoryDirector {
+  const zh = locale === 'zh'
+  return {
+    mode: 'guided',
+    fixedWorldRules: zh ? [
+      '涨潮、警戒队、港务路线与补给是可执行的现实压力；已确认地点、时间、物品、小队和后果不能静默改写。',
+      '弥拉、奥伦和赛是完整当前小队。遇见新人不能替换他们，明确离队必须有可见原因和协议命令。',
+      '低洼通道会随潮位关闭，公开行动会提高警戒；港城人物只知道亲历、听说或读到的事实。',
+    ] : [
+      'The tide, harbor watch, routes and supplies are executable pressures. Confirmed places, time, ownership, party and consequences cannot be silently rewritten.',
+      'Mira, Oren and Sai are the complete current party. New people never replace them; departure needs a visible cause and protocol command.',
+      'Low routes close as water rises and public actions raise alert. People know only what they witnessed, heard or read.',
+    ],
+    generationRules: zh ? [
+      '每轮推进航线册目标或一个具体港城后果；移动、等待和高风险行动必须改变时间、潮位、警戒、补给、地点或已知事实。',
+      '危险允许侦察、交涉、小队分工、工具、绕行、逃离或正面冲突，不能把战斗写成唯一答案。',
+      '失败产生受伤、损失、追击、路线关闭或关系压力，不删档，也不能让小队成员无故消失。',
+    ] : [
+      'Every turn advances the route-ledger objective or a concrete harbor consequence. Travel, waiting and risky action change time, tide, alert, supplies, place or known facts.',
+      'Danger allows scouting, negotiation, party roles, tools, detours, escape or confrontation; combat is never the only answer.',
+      'Failure causes injury, loss, pursuit, route closure or relationship pressure, never save deletion or silent party loss.',
+    ],
+    choiceIntents: zh ? ['观察、交涉或小队协作', '移动、潜行或利用工具', '冒险突破、撤离或正面应对'] : ['observe, negotiate, or coordinate', 'move, sneak, or use a tool', 'take a risk, withdraw, or confront'],
+    maxActiveThreads: 3,
+  }
+}
+
+function dangerDirector(locale: 'zh' | 'en'): StoryDangerDirector {
+  const zh = locale === 'zh'
+  return {
+    minSafeTurns: 2, maxSafeTurns: 3, cooldownTurns: 1,
+    escalationStats: ['tide', 'supplies', 'alert'],
+    threatPalette: zh
+      ? ['警戒队正在收紧搜查范围', '潮门正在提前关闭', '低洼通道突然开始进水', '沉船结构正在危险坍塌', '走私者在前方设置伏击', '一处旧港务机关被触发']
+      : ['the harbor watch is tightening its search', 'a tide gate is closing early', 'a low passage is flooding fast', 'a wreck structure is collapsing', 'smugglers have prepared an ambush', 'an old harbor mechanism has been triggered'],
+    methods: zh ? ['侦察、交涉或小队分工', '潜行、绕行或撤退', '使用工具、环境或正面突破'] : ['scout, negotiate, or coordinate the party', 'sneak, detour, or withdraw', 'use a tool, the environment, or break through'],
+    physicalCombat: 'rare',
+    resolution: {
+      skill: zh ? '港区应变' : 'Harbor Response', modifier: 2, dcBySeverity: [9, 11, 13, 15, 17], criticalDcBonus: 3,
+      fallbackCosts: [{ statId: 'alert', operation: 'add', amount: 12 }],
+    },
+  }
+}
 
 const shared = {
   schemaVersion: 1 as const,
@@ -33,6 +77,8 @@ const shared = {
 export const seventhDock: StoryCartridge = {
   ...shared, locale: 'zh',
   copy: { title: '第七码头', subtitle: '涨潮前的港城手记', promise: '世界记得你选择了谁，也记得你放弃了谁。', enter: '翻开第一程', continue: '继续这段旅程', customAction: '写下自己的行动', itemImagingTitle: '潮痕正在显影', itemImagingBody: '你摊开行囊，港务纸页开始按这座城的光线与材质记录每件物品。第一幅显影完成后，其余记录会在后台继续。' },
+  director: storyDirector('zh'),
+  dangerDirector: dangerDirector('zh'),
   statDefinitions: [
     { id: 'tide', label: '潮位', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: '补给', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },
@@ -90,6 +136,8 @@ export const seventhDock: StoryCartridge = {
 export const seventhDockEn: StoryCartridge = {
   ...shared, locale: 'en',
   copy: { title: 'Seventh Dock', subtitle: 'A harbor journal before the tide', promise: 'The world remembers whom you chose—and whom you left behind.', enter: 'Open the first passage', continue: 'Continue the journey', customAction: 'Write your own action', itemImagingTitle: 'The tide marks are developing', itemImagingBody: 'Opening your kit lets the harbor folio record each object in this city’s own light and material language. The remaining plates will continue developing in the background.' },
+  director: storyDirector('en'),
+  dangerDirector: dangerDirector('en'),
   statDefinitions: [
     { id: 'tide', label: 'Tide', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: 'Supplies', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },

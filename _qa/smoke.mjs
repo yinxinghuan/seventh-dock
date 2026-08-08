@@ -105,7 +105,7 @@ if (!audioBox || audioBox.width < 44 || audioBox.height < 44 || audioStarted < 1
 await audioButton.click()
 const mutedState = await page.evaluate(() => ({ muted: localStorage.getItem('alteru_story_audio_muted'), pressed: document.querySelector('.st-audio-button')?.getAttribute('aria-pressed') }))
 if (mutedState.muted !== '1' || mutedState.pressed !== 'false') throw new Error(`mute state was not persisted: ${JSON.stringify(mutedState)}`)
-await page.getByRole('button', { name: 'Enable sound' }).click()
+await page.getByRole('button', { name: 'Turn sound on' }).click()
 const enabledState = await page.evaluate(() => ({ muted: localStorage.getItem('alteru_story_audio_muted'), pressed: document.querySelector('.st-audio-button')?.getAttribute('aria-pressed') }))
 if (enabledState.muted !== '0' || enabledState.pressed !== 'true') throw new Error(`unmute state was not persisted: ${JSON.stringify(enabledState)}`)
 const openingReading = await page.evaluate(() => {
@@ -117,7 +117,7 @@ const openingReading = await page.evaluate(() => {
 if (openingReading.scrollTop > 4 || openingReading.proseTop < openingReading.feedTop - 1 || openingReading.proseTop >= openingReading.feedBottom || openingReading.imageTop <= openingReading.proseTop) throw new Error(`opening text is not the reading anchor: ${JSON.stringify(openingReading)}`)
 await page.screenshot({ path: shot('opening-reading') })
 await page.waitForFunction(() => document.querySelector('.st-message-image.is-ready'))
-if (imagePayload?.ref_url !== avatarUrl) throw new Error(`avatar ref_url missing: ${JSON.stringify(imagePayload)}`)
+if (imagePayload?.ref_url) throw new Error(`opening scene should not force the player avatar into an environmental image: ${JSON.stringify(imagePayload)}`)
 await page.locator('.st-text-size summary').click()
 await page.screenshot({ path: shot('text-size') })
 await page.getByRole('button', { name: 'Large', exact: true }).click()
@@ -188,6 +188,16 @@ await page.getByRole('button', { name: 'World' }).click()
 await page.waitForTimeout(280)
 await page.locator('.st-roster__player').getByText(playerName, { exact: true }).waitFor()
 await page.screenshot({ path: shot('world') })
+await page.evaluate((id) => {
+  const legacy = localStorage.getItem(`${id}-save`)
+  if (!legacy) throw new Error('missing standalone save before migration check')
+  localStorage.setItem('stateful-story-template-save', legacy)
+  localStorage.removeItem(`${id}-save`)
+}, gameId)
+await page.reload({ waitUntil: 'networkidle' })
+await page.addStyleTag({ content: '#alteru-guest-banner{display:none!important}' })
+await page.getByRole('button', { name: 'Continue game' }).click()
+await page.waitForFunction((id) => Boolean(localStorage.getItem(`${id}-save`)), gameId)
 await page.close()
 
 if (width === 390) {
@@ -231,5 +241,5 @@ if (chatCalls !== 2 || !chatPayload?.messages?.[0]?.content?.includes('Only thes
 await aiPage.screenshot({ path: shot('ai-continuation') })
 await aiPage.close()
 
-console.log(`${gameId} ok · procedural audio/mute · Aigram continuation/retry · opening/response anchors · adaptive choices · uuid · isolated save · avatar · gen-image ref · text size · ${width}x${height}`)
+console.log(`${gameId} ok · procedural audio/mute · Aigram continuation/retry · opening/response anchors · adaptive choices · uuid · isolated save + shared-key migration · selective image identity · text size · ${width}x${height}`)
 await browser.close()

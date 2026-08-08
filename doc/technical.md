@@ -15,6 +15,7 @@
 - `src/story/cartridges/seventhDock.ts`：Seventh Dock 的 zh/en 内容、数值、角色、地图、物品和演示回合。
 - `src/story/cartridges/index.ts`：固定 `DEFAULT_CARTRIDGE_ID='seventh-dock'`；不提供世界选择器。
 - `src/story/engine/`：协议解析、结构化命令和 reducer。
+- `src/story/engine/dangerDirector.ts`：2–3 安全行动节奏、港区威胁阶段、稳定 d20 与警戒兜底代价。
 - `src/story/adapters/`：Aigram AI、有限本地演示与实验远程连续世界适配器。
 - `src/story/useStoryEngine.ts`：状态镜像、Aigram 存档、Adapter 调用和串行图片队列。
 - `src/story/usePlayerProfile.ts`：调试覆盖、Aigram 用户资料与默认 `U` 回退。
@@ -27,7 +28,11 @@
 
 `StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。721 px 以上 Shell 最大 960 px；正文、快速回复和输入区按 Shell 自身 `100%` 计算 680 px 中心阅读列，不能用 `100vw` 参与内部留白。页眉中心轴最大 760 px，抽屉与 Shell 同宽。
 
-`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v5 保存地点、时间、目标、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、语言和远程 chatId。弥拉、奥伦和赛以稳定 ID 进入初始小队；新角色采用合并，只有明确离队命令才能移除。
+`StorySave.version = 6` 新增持久化 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
+
+`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v6 保存地点、时间、目标、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、语言和远程 chatId。弥拉、奥伦和赛以稳定 ID 进入初始小队；新角色采用合并，只有明确离队命令才能移除。
+
+若独立命名空间为空，引擎会读取旧 `stateful-story-template-save` 中的第七码头世界并迁入 `seventh-dock-save`；平台内云存档继续由永久 UUID 隔离，已有旅程不会因命名空间修正丢失。
 
 灾难、昏迷和任务失败目前是可继续的叙事后果，不会由前端自动删档；`session_end` 只是可恢复的章节节点。玩家可在“世界 → 日志 → 系统”两次确认从头开始。`restartWorld()` 只以本作开场状态覆盖 Seventh Dock 的本地/Aigram 存档，移除实验 remote chat 绑定，并使重置前尚未返回的场景图结果失效；AI 回合进行中入口禁用。
 
@@ -49,6 +54,7 @@
 
 - 改港区故事、数值、角色、地图、物品和演示回合：编辑 `src/story/cartridges/seventhDock.ts`。
 - 改结构化规则或新增命令：先更新 `src/story/types.ts`，再改 `engine/protocol.ts` 与 `engine/reducer.ts`。
+- 改危险频率、港区威胁池、应对意图、五级 DC 或失败代价：修改 `seventhDock.ts` 的 `dangerDirector`；不要只改提示词。
 - 改正式 AI 上下文/提示：编辑 `src/story/adapters/aigram.ts`；改远程世界接口：编辑 `remote.ts`。保持 `StoryAdapter` 合同。
 - 改出图密度或保证事件：编辑 `seventhDock.ts` 的 `imageDirector`；换港城场景画风改 `sceneImageDirection`。通用算法位于 `engine/imageDirector.ts`。
 - 改主角资料或图片身份约束：分别编辑 `usePlayerProfile.ts` 与 `useStoryEngine.ts`；不要把头像字段加入 StorySave。

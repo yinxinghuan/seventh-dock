@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:protocol": "TMPDIR=/private/tmp tsx _qa/protocol.ts",
+    "test:danger": "TMPDIR=/private/tmp tsx _qa/danger-director.ts",
     "test:smoke": "node _qa/smoke.mjs"
   },
   "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1" },
