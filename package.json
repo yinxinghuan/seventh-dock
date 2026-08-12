@@ -11,6 +11,7 @@
     "test:protocol": "TMPDIR=/private/tmp tsx _qa/protocol.ts",
     "test:danger": "TMPDIR=/private/tmp tsx _qa/danger-director.ts",
     "test:smoke": "node _qa/smoke.mjs"
+    ,"test:domain": "TMPDIR=/private/tmp tsx _qa/domain-rules.ts"
   },
   "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1" },
   "devDependencies": {

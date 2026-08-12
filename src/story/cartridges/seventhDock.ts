@@ -79,6 +79,27 @@ export const seventhDock: StoryCartridge = {
   copy: { title: '第七码头', subtitle: '涨潮前的港城手记', promise: '世界记得你选择了谁，也记得你放弃了谁。', enter: '翻开第一程', continue: '继续这段旅程', customAction: '写下自己的行动', itemImagingTitle: '潮痕正在显影', itemImagingBody: '你摊开行囊，港务纸页开始按这座城的光线与材质记录每件物品。第一幅显影完成后，其余记录会在后台继续。' },
   director: storyDirector('zh'),
   dangerDirector: dangerDirector('zh'),
+  initialFacts: {},
+  domainRules: [
+    {
+      id: 'opening-traces', when: { factUnset: ['opening-method'] }, action: { exact: ['检查外堤上的测量痕迹'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'traces' }, { type: 'fact', key: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '潮前 01:52' }, { type: 'objective', value: '判断反向潮标是路线还是警告' }],
+      successText: '你沿湿石缝找出被盐渍盖住的铜钉线。弥拉压低防潮灯，光下最后三步测量痕迹显然被人故意磨掉；更深处却藏着一枚反向刻入的潮标。测绘员留下的不是完整路线，而是一条只允许谨慎的人继续读下去的警告。',
+      successChoices: ['沿反向潮标进入沉船巷', '请弥拉解释这种暗号', '先在高处确认警戒队的位置'],
+    },
+    {
+      id: 'opening-mira', when: { factUnset: ['opening-method'] }, action: { exact: ['先问弥拉为什么隐瞒警戒队'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'mira' }, { type: 'fact', key: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '潮前 02:02' }, { type: 'objective', value: '决定是否用弥拉掌握的旧警戒路线进入沉船巷' }],
+      successText: '你没有顺着她的话继续走，而是要求弥拉先说清楚。她从衣领里取出一枚警戒队旧铜片：测绘员失踪前，她曾负责绘制内港水路；失踪后，两个人的名字一起从档案里被删掉。她的沉默提高了风险，但她也把一条只有前警戒队员知道的入口交到了你手上。',
+      successChoices: ['相信弥拉，走旧警戒路线', '先检查铜片和外堤潮标是否对应', '要求她说明警戒队今晚在找什么'],
+    },
+    {
+      id: 'opening-route', when: { factUnset: ['opening-method'] }, action: { exact: ['查看通往沉船巷的路线'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'route' }, { type: 'fact', key: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '潮前 01:58' }, { type: 'objective', value: '选择低处潮道或高处搬运通道进入沉船巷' }],
+      successText: '你先摊开航图，把涨潮速度、警戒灯位和仓墙高度叠在一起。低处潮道最快，却会在四十分钟内封死；上方还有一条没有画在图上的旧搬运通道，入口处留着已经解散的工会绳结。路线不会替你做决定，但风险第一次有了清楚形状。',
+      successChoices: ['抢走低处潮道', '寻找高处搬运通道的入口', '问弥拉谁还认得旧工会绳结'],
+    },
+  ],
   statDefinitions: [
     { id: 'tide', label: '潮位', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: '补给', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },
@@ -99,8 +120,8 @@ export const seventhDock: StoryCartridge = {
   },
   characters: [
     { id: 'mira', name: '弥拉', role: '领航员', vitality: 8, stress: 3, detail: '熟悉港城暗号、潮门和被官方删改的航路。', lore: '她曾替警戒队绘制内港水路，测绘员失踪后，档案里也不再有她的名字。', skills: [{ id: 'observe', label: '观察', value: 4 }, { id: 'negotiate', label: '交涉', value: 2 }] },
-    { id: 'oren', name: '奥伦', role: '旧港搬运工', vitality: 10, stress: 2, detail: '力气大，知道仓栈之间不写在地图上的搬运通道。', lore: '旧港工会解散后，他仍替失业搬运工保管一串废弃仓门钥匙。', skills: [{ id: 'stealth', label: '潜行', value: 2 }, { id: 'will', label: '意志', value: 4 }] },
-    { id: 'sai', name: '赛', role: '档案学徒', vitality: 6, stress: 4, detail: '能辨认旧纸、墨水年代和港务文书的删改痕迹。', lore: '他相信港城真正的历史藏在被撕走的页码和错误的索引里。', skills: [{ id: 'observe', label: '观察', value: 3 }, { id: 'negotiate', label: '交涉', value: 3 }] },
+    { id: 'oren', name: '奥伦', role: '旧港搬运工', vitality: 10, stress: 2, hiddenUntilIntroduced: true, detail: '力气大，知道仓栈之间不写在地图上的搬运通道。', lore: '旧港工会解散后，他仍替失业搬运工保管一串废弃仓门钥匙。', skills: [{ id: 'stealth', label: '潜行', value: 2 }, { id: 'will', label: '意志', value: 4 }] },
+    { id: 'sai', name: '赛', role: '档案学徒', vitality: 6, stress: 4, hiddenUntilIntroduced: true, detail: '能辨认旧纸、墨水年代和港务文书的删改痕迹。', lore: '他相信港城真正的历史藏在被撕走的页码和错误的索引里。', skills: [{ id: 'observe', label: '观察', value: 3 }, { id: 'negotiate', label: '交涉', value: 3 }] },
   ],
   initialMap: [
     { id: 'outer', label: '外堤', current: true, detail: '第七码头最外侧的石堤，系船柱无船却已被潮水打湿。', lore: '旧潮尺仍按废弃历法刻度；港务局换过三次牌子，却没有换掉它。', facts: ['涨潮封路前约剩两小时', '警戒队已经提前进入内港'] },
@@ -138,6 +159,27 @@ export const seventhDockEn: StoryCartridge = {
   copy: { title: 'Seventh Dock', subtitle: 'A harbor journal before the tide', promise: 'The world remembers whom you chose—and whom you left behind.', enter: 'Open the first passage', continue: 'Continue the journey', customAction: 'Write your own action', itemImagingTitle: 'The tide marks are developing', itemImagingBody: 'Opening your kit lets the harbor folio record each object in this city’s own light and material language. The remaining plates will continue developing in the background.' },
   director: storyDirector('en'),
   dangerDirector: dangerDirector('en'),
+  initialFacts: {},
+  domainRules: [
+    {
+      id: 'opening-traces', when: { factUnset: ['opening-method'] }, action: { exact: ['Inspect the survey marks on the outer quay'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'traces' }, { type: 'fact', key: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '01:52 before tide' }, { type: 'objective', value: 'Determine whether the reversed tide mark is a route or warning' }],
+      successText: 'You trace the brass survey line through salt-wet joints while Mira shades the lamp. The final three measurements were deliberately ground away, but beneath them lies a tide mark cut in reverse. The missing surveyor left no complete route—only a warning meant for someone cautious enough to keep reading.',
+      successChoices: ['Follow the reversed mark into Wreck Alley', 'Ask Mira to explain the cipher', 'Confirm the watch position from higher ground'],
+    },
+    {
+      id: 'opening-mira', when: { factUnset: ['opening-method'] }, action: { exact: ['Ask why Mira hid the watch from us'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'mira' }, { type: 'fact', key: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '02:02 before tide' }, { type: 'objective', value: 'Decide whether to use Mira’s old watch route into Wreck Alley' }],
+      successText: 'You stop before following her lead and ask for the missing truth. Mira removes an old watch token from beneath her collar: she charted the inner harbor before the surveyor vanished, and afterward both names were removed from the archive. Her silence has raised the risk, but she now gives you an entrance only a former watch navigator would know.',
+      successChoices: ['Trust Mira and take the old watch route', 'Compare her token with the quay marks', 'Ask what the watch is searching for tonight'],
+    },
+    {
+      id: 'opening-route', when: { factUnset: ['opening-method'] }, action: { exact: ['Study the route into Wreck Alley'] },
+      effects: [{ type: 'fact', key: 'opening-method', value: 'route' }, { type: 'fact', key: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '01:58 before tide' }, { type: 'objective', value: 'Choose the lower tide lane or upper freight passage into Wreck Alley' }],
+      successText: 'You overlay tide speed, watch lights, and warehouse height on the chart. The lower lane is fastest but will seal within forty minutes. Above it, an uncharted freight passage begins beneath a dissolved union’s rope knot. The route does not choose for you, but its risks finally have a clear shape.',
+      successChoices: ['Take the lower tide lane now', 'Find the upper freight entrance', 'Ask Mira who still recognizes the union knot'],
+    },
+  ],
   statDefinitions: [
     { id: 'tide', label: 'Tide', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: 'Supplies', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },
@@ -158,8 +200,8 @@ export const seventhDockEn: StoryCartridge = {
   },
   characters: [
     { id: 'mira', name: 'Mira', role: 'Navigator', vitality: 8, stress: 3, detail: 'Knows harbor ciphers, tide gates, and routes erased from official charts.', lore: 'She once charted the inner harbor for the watch. After the surveyor vanished, her name disappeared from the archive too.', skills: [{ id: 'observe', label: 'Observe', value: 4 }, { id: 'negotiate', label: 'Negotiate', value: 2 }] },
-    { id: 'oren', name: 'Oren', role: 'Old-port stevedore', vitality: 10, stress: 2, detail: 'Strong, patient, and familiar with freight passages omitted from public maps.', lore: 'When the old union dissolved, he kept a ring of keys to warehouses no longer meant to exist.', skills: [{ id: 'stealth', label: 'Stealth', value: 2 }, { id: 'will', label: 'Will', value: 4 }] },
-    { id: 'sai', name: 'Sai', role: 'Archive apprentice', vitality: 6, stress: 4, detail: 'Can date paper, ink, and the edits hidden inside harbor records.', lore: 'He believes the city’s real history survives in torn folios and deliberately broken indexes.', skills: [{ id: 'observe', label: 'Observe', value: 3 }, { id: 'negotiate', label: 'Negotiate', value: 3 }] },
+    { id: 'oren', name: 'Oren', role: 'Old-port stevedore', vitality: 10, stress: 2, hiddenUntilIntroduced: true, detail: 'Strong, patient, and familiar with freight passages omitted from public maps.', lore: 'When the old union dissolved, he kept a ring of keys to warehouses no longer meant to exist.', skills: [{ id: 'stealth', label: 'Stealth', value: 2 }, { id: 'will', label: 'Will', value: 4 }] },
+    { id: 'sai', name: 'Sai', role: 'Archive apprentice', vitality: 6, stress: 4, hiddenUntilIntroduced: true, detail: 'Can date paper, ink, and the edits hidden inside harbor records.', lore: 'He believes the city’s real history survives in torn folios and deliberately broken indexes.', skills: [{ id: 'observe', label: 'Observe', value: 3 }, { id: 'negotiate', label: 'Negotiate', value: 3 }] },
   ],
   initialMap: [
     { id: 'outer', label: 'Outer Quay', current: true, detail: 'The outermost stone quay of Seventh Dock. Its empty mooring posts are already wet.', lore: 'The old tide gauge still follows an abandoned calendar; three harbor authorities changed their signs without replacing it.', facts: ['About two hours remain before the tide seals the route', 'The watch entered the inner harbor early'] },

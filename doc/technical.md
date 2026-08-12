@@ -28,9 +28,11 @@
 
 `StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。721 px 以上 Shell 最大 960 px；正文、快速回复和输入区按 Shell 自身 `100%` 计算 680 px 中心阅读列，不能用 `100vw` 参与内部留白。页眉中心轴最大 760 px，抽屉与 Shell 同宽。
 
-`StorySave.version = 6` 新增持久化 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
+`StorySave.version = 7` 保存持久化 `facts` 与 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
 
-`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v6 保存地点、时间、目标、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、语言和远程 chatId。弥拉、奥伦和赛以稳定 ID 进入初始小队；新角色采用合并，只有明确离队命令才能移除。
+`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v7 保存地点、时间、目标、事实、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、语言和远程 chatId。初始人物只有已在正文出现的弥拉；奥伦和赛保留稳定 ID，但由 `hiddenUntilIntroduced` 隐藏，只有可见首次登场成立后才进入权威存档。新角色采用合并，只有明确离队命令才能移除。
+
+`domainRules.ts` 将查痕迹、追问弥拉、先看路线做成三项互斥本地首轮事务；命中时完全跳过模型调用，并分别提交反向潮标、弥拉旧身份或高处搬运通道及其代价。规则回放同时验证恶意模型命令不能提前生成奥伦。
 
 若独立命名空间为空，引擎会读取旧 `stateful-story-template-save` 中的第七码头世界并迁入 `seventh-dock-save`；平台内云存档继续由永久 UUID 隔离，已有旅程不会因命名空间修正丢失。
 
@@ -51,6 +53,8 @@
 声音使用浏览器 Web Audio API 实时合成，不下载音频文件，也不请求音频生成接口。只有首次用户手势才创建 `AudioContext`；移动 WebView 的 `suspended/interrupted` 状态会恢复并用一帧静音 buffer 激活输出。`music / ambient / sfx` 三路总线限制最多 8 个活跃声部。港区配置为 54 BPM、A2 根音和五声音阶；潮位、警戒升高及补给降低会提高 8 拍循环的脉冲密度。进入、行动、检定成败、状态变化、发现、图片完成、阶段小结与错误均有独立 cue。顶部 44 px 扬声器按钮按实际 `ready` 状态显示开关；启动失败时单击直接重试，偏好写入 `localStorage.alteru_story_audio_muted`。页面后台暂停，设备不支持时静默降级；音频偏好不进入 StorySave。
 
 ## 4. 扩展点
+
+- 新增一次性路线、暗号、警戒承诺或人物首次登场：同时维护 `initialFacts / domainRules / hiddenUntilIntroduced` 与 `_qa/domain-rules.ts`。
 
 - 改港区故事、数值、角色、地图、物品和演示回合：编辑 `src/story/cartridges/seventhDock.ts`。
 - 改结构化规则或新增命令：先更新 `src/story/types.ts`，再改 `engine/protocol.ts` 与 `engine/reducer.ts`。
