@@ -72,3 +72,9 @@
 - 改灾难、终局或重置语义：先为 `StorySave` 增加明确终局状态，再同步 reducer、Composer 和 `restartWorld()`；不能根据 AI 旁白中的“死亡”字样直接清档。
 - 世界实体字段位于 `types.ts`，协议由 `protocol.ts` 解析、`reducer.ts` 原子写入；切到行囊时，`useStoryEngine.prepareInventoryImages()` 自动把缺图、失败或旧 `imageStyleVersion` 的物品加入与剧情图共用的串行 worker。物品提示始终合并 `itemImageDirection`，并使用纯文字 txt2img，不再传入 `coverImage` 风格参考，同时排除封面/开场的地点、构图和道具；状态、URL 与画风版本保存在 `InventoryItem`。旧画风 URL 在重绘时保留但不展示，新图成功后再原子替换。题材内容和首次显影文案统一在 `seventhDock.ts` 配置。
 - 恢复旧存档时按稳定 id 补齐 Cartridge 新增的说明字段，同时保留旧数量、地点状态和已生成图片；无需删档重开。
+
+## 连续性守门（2026-08-13）
+
+- Cartridge 通过 `transitionAnchor` 声明“弥拉的航线册与当前潮标”；`src/story/engine/continuity.ts` 生成地点桥接、压缩 `decisionContext` 并核验选项名词是否已有可见依据。
+- `reducer.ts` 在 `map_update` 与受管辖地图事务提交前插入桥接，并在选择落入 UI 前执行 grounded-choice 检查；旧存档升级到 StorySave v8 时从现有目标补齐 `decisionContext`。
+- `_qa/continuity-gate.ts` 以未登场的“国王 / 快递员 / 玻璃王国”作为反例，同时断言中转锚点先于目的地正文。

@@ -5,6 +5,7 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
+    "test:continuity": "TMPDIR=/private/tmp tsx _qa/continuity-gate.ts",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
