@@ -28,9 +28,9 @@
 
 `StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。721 px 以上 Shell 最大 960 px；正文、快速回复和输入区按 Shell 自身 `100%` 计算 680 px 中心阅读列，不能用 `100vw` 参与内部留白。页眉中心轴最大 760 px，抽屉与 Shell 同宽。
 
-`StorySave.version = 7` 保存持久化 `facts` 与 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
+`StorySave.version = 9` 保存持久化 `facts`、可选局面锚点与 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
 
-`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v7 保存地点、时间、目标、事实、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、语言和远程 chatId。初始人物只有已在正文出现的弥拉；奥伦和赛保留稳定 ID，但由 `hiddenUntilIntroduced` 隐藏，只有可见首次登场成立后才进入权威存档。新角色采用合并，只有明确离队命令才能移除。
+`useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v9 保存地点、时间、目标、事实、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、可选局面锚点、语言和远程 chatId。初始人物只有已在正文出现的弥拉；奥伦和赛保留稳定 ID，但由 `hiddenUntilIntroduced` 隐藏，只有可见首次登场成立后才进入权威存档。新角色采用合并，只有明确离队命令才能移除。
 
 `domainRules.ts` 将查痕迹、追问弥拉、先看路线做成三项互斥本地首轮事务；命中时完全跳过模型调用，并分别提交反向潮标、弥拉旧身份或高处搬运通道及其代价。规则回放同时验证恶意模型命令不能提前生成奥伦。
 
@@ -75,6 +75,6 @@
 
 ## 连续性守门（2026-08-13）
 
-- Cartridge 通过 `transitionAnchor` 声明“弥拉的航线册与当前潮标”；`src/story/engine/continuity.ts` 生成地点桥接、压缩 `decisionContext` 并核验选项名词是否已有可见依据。
-- `reducer.ts` 在 `map_update` 与受管辖地图事务提交前插入桥接，并在选择落入 UI 前执行 grounded-choice 检查；旧存档升级到 StorySave v8 时从现有目标补齐 `decisionContext`。
+- Cartridge 通过 `transitionAnchor` 声明“弥拉的航线册与当前潮标”；`continuity.ts` 生成地点桥接、校验可选 `[situation]` 短摘要没有复制本回合正文，并核验选项名词是否已有可见依据。
+- StorySave v9 清除旧版本机械截断的 `decisionContext`；普通回合保持为空，只有合格的显式 `[situation]` 才显示“眼前”。`protocol.ts` 同时移除模型误写的状态清单但保留 `[widget]`，`StoryShell.tsx` 依据权威 `stat/delta` 渲染增减签条与顶部单项动态反馈。
 - `_qa/continuity-gate.ts` 以未登场的“国王 / 快递员 / 玻璃王国”作为反例，同时断言中转锚点先于目的地正文。
