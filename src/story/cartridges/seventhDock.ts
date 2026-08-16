@@ -1,4 +1,4 @@
-import type { StoryCartridge, StoryDangerDirector, StoryDirector, StoryImageDirector } from '../types'
+import type { PresetEventDefinition, StoryCartridge, StoryDangerDirector, StoryDirector, StoryImageDirector } from '../types'
 
 const coverImage = new URL('../img/worlds/seventh-dock.webp', import.meta.url).href
 const entryImage = new URL('../img/worlds/seventh-dock-entry.webp', import.meta.url).href
@@ -47,6 +47,29 @@ function dangerDirector(locale: 'zh' | 'en'): StoryDangerDirector {
   }
 }
 
+function presetEvents(locale: 'zh' | 'en'): PresetEventDefinition[] {
+  if (locale === 'zh') return [
+    { id: 'outer-bell', locationId: 'outer', category: 'environment', choiceLabel: '查看没有风却自行摆动的旧潮铃', text: '外堤尽头的旧潮铃没有发声，铃舌却朝内港方向缓慢摆动。弥拉说这通常只会发生在潮门提前泄水时。', objective: '确认哪一道潮门正在提前泄水', choices: ['贴近石栏听水流来自哪个方向', '请弥拉在航线册上标出可能的潮门', '检查潮铃底座是否被人动过'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW at a salt-wet harbor parapet, a silent old tide bell swinging toward the inner harbor while a navigator points beyond it, protagonist out of frame, no text', imageSubject: 'others' },
+    { id: 'outer-net', locationId: 'outer', category: 'local-work', choiceLabel: '帮渔网修补工收起被潮水拖走的线坠', text: '一名修补工跪在空船位旁，三枚铅坠正被回水拖向石缝。她不敢大声喊人，因为警戒队刚从堤后经过。', objective: '取回线坠并问清警戒队为何提前巡堤', choices: ['用短绳拦住最外侧的铅坠', '让弥拉望风，自己沿石缝取回线坠', '先问修补工警戒队去了哪里'], imagePrompt: 'observer three-quarter harbor scene of a net mender beside an empty berth as three lead weights slide toward wet stone gaps, warm lantern light, no readable text', imageSubject: 'others' },
+    { id: 'outer-crate', locationId: 'outer', category: 'evidence', choiceLabel: '检查系船柱后漂来的空木箱', text: '一只没有货物的木箱卡在系船柱后，箱底却粘着内港档案室才用的防潮蜡。箱盖没有撬痕，侧板内缘有新鲜刮痕。', objective: '判断空箱如何从内港来到外堤', choices: ['检查刮痕方向和深度', '请弥拉辨认防潮蜡的配方', '沿回水寻找第二只箱子'], imagePrompt: 'third-person environmental detail of an empty weathered crate caught behind a harbor bollard, dark teal sealing wax residue and fresh inner scratches, no people, no text', imageSubject: 'environment' },
+    { id: 'outer-rope-knot', locationId: 'outer', category: 'environment', choiceLabel: '查看系船绳上刚打好的陌生结', text: '一根本该废弃的系船绳上多了一个刚收紧的双环结，绳纤维还在滴水。奥伦说这种结不是本港搬运工的手法。', objective: '确认是谁从水路登上外堤并留下双环结', choices: ['请奥伦拆解双环结的受力方向', '沿湿绳检查它连接过什么', '查看堤边是否留下登岸脚印'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW at a wet harbor bollard, a freshly tightened double-loop knot dripping seawater while an old stevedore points out its construction, protagonist absent, no text', imageSubject: 'others' },
+    { id: 'wreck-lantern', locationId: 'wreck', category: 'signal', choiceLabel: '确认沉船腹地闪了三次的灯光', text: '两具旧船壳之间连续闪过三次暖光，间隔与普通求救信号不同。赛认出那是旧档案员约定的“有人正在删页”。', objective: '找到发信号的人并确认哪份档案正被转移', choices: ['沿高处舷梁接近灯光来源', '请赛复述完整的旧档案信号', '熄灭防潮灯后观察下一轮信号'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW through the ribs of old shipwrecks toward three warm lantern flashes in a flooded alley, an archive apprentice signaling beside the frame, protagonist absent, no text', imageSubject: 'others' },
+    { id: 'wreck-door', locationId: 'wreck', category: 'environment', choiceLabel: '查看退潮后露出的半扇铜门', text: '短暂回水露出半扇嵌在仓墙下的铜门，门缝里夹着一页没有字的港务纸。奥伦说这不是仓库入口，而是旧搬运工的计件通道。', objective: '在水位回升前确认铜门通往哪里', choices: ['让奥伦检查门锁和旧工会记号', '用短绳固定铜门避免再次没入水中', '先取出门缝里的港务纸检查材质'], imagePrompt: 'observer medium-wide scene in a flooded wreck alley, a half-exposed copper door beneath a warehouse wall while an old stevedore examines union marks, no readable text', imageSubject: 'others' },
+    { id: 'wreck-ink', locationId: 'wreck', category: 'evidence', choiceLabel: '检查水面上没有散开的黑色墨滴', text: '一串黑色墨滴浮在水面却没有散开，顺着潮流指向一处被帆布遮住的排水口。赛说只有档案防水墨会留下这种边缘。', objective: '追踪防水墨并判断是否有人刚从档案室离开', choices: ['沿墨滴间距判断移动速度', '掀开帆布检查排水口', '请赛取一滴墨与航线册比对'], imagePrompt: 'third-person environmental close shot of distinct black waterproof ink droplets floating on dark teal floodwater toward a canvas-covered drain, no people, no text', imageSubject: 'environment' },
+    { id: 'wreck-anchor-chain', locationId: 'wreck', category: 'environment', choiceLabel: '确认水下拖动锚链的人去了哪里', text: '水下锚链突然绷紧，沿沉船肋骨滑出一串气泡。弥拉看见链条末端绕向档案室后墙，而那一侧没有公开通道。', objective: '沿锚链找到通往档案室后墙的隐藏路线', choices: ['观察气泡判断锚链移动方向', '让弥拉标记后墙与潮流的交点', '用短绳固定锚链防止它再次滑走'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW over dark floodwater where a taut anchor chain releases bubbles toward the rear wall of a wreck archive, a navigator pointing beside the frame, protagonist out of view, no text', imageSubject: 'others' },
+  ]
+  return [
+    { id: 'outer-bell', locationId: 'outer', category: 'environment', choiceLabel: 'Inspect the old tide bell moving without wind', text: 'The old tide bell stays silent, yet its clapper swings toward the inner harbor. Mira says that happens only when a gate releases water early.', objective: 'Identify which tide gate has begun releasing water', choices: ['Listen at the parapet for the direction of the current', 'Ask Mira to mark likely gates on the route ledger', 'Check whether someone tampered with the bell base'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW at a salt-wet harbor parapet, a silent old tide bell swinging toward the inner harbor while a navigator points beyond it, protagonist out of frame, no text', imageSubject: 'others' },
+    { id: 'outer-net', locationId: 'outer', category: 'local-work', choiceLabel: 'Help a net mender recover weights pulled by the tide', text: 'A net mender kneels beside an empty berth as three lead weights slide toward cracks in the quay. She will not call out because the watch just passed behind the wall.', objective: 'Recover the weights and learn why the watch is patrolling early', choices: ['Use the short rope to stop the outer weight', 'Have Mira watch while you retrieve the weights', 'Ask where the watch went before touching them'], imagePrompt: 'observer three-quarter harbor scene of a net mender beside an empty berth as three lead weights slide toward wet stone gaps, warm lantern light, no readable text', imageSubject: 'others' },
+    { id: 'outer-crate', locationId: 'outer', category: 'evidence', choiceLabel: 'Inspect the empty crate caught behind the bollard', text: 'An empty crate is wedged behind a mooring post. Its base carries waterproof wax used only by the inner archive; its lid is intact, but fresh scratches mark the inside boards.', objective: 'Learn how the empty archive crate reached the outer quay', choices: ['Inspect the direction and depth of the scratches', 'Ask Mira to identify the sealing wax', 'Follow the backwash for a second crate'], imagePrompt: 'third-person environmental detail of an empty weathered crate caught behind a harbor bollard, dark teal sealing wax residue and fresh inner scratches, no people, no text', imageSubject: 'environment' },
+    { id: 'outer-rope-knot', locationId: 'outer', category: 'environment', choiceLabel: 'Inspect the unfamiliar new knot on the mooring line', text: 'A fresh double-loop knot tightens a line that should be abandoned, and the fibers still drip seawater. Oren says no local stevedore ties rope this way.', objective: 'Learn who came ashore and left the double-loop knot', choices: ['Ask Oren to explain how the knot was loaded', 'Follow the wet line to what it held', 'Check the quay edge for landing footprints'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW at a wet harbor bollard, a freshly tightened double-loop knot dripping seawater while an old stevedore points out its construction, protagonist absent, no text', imageSubject: 'others' },
+    { id: 'wreck-lantern', locationId: 'wreck', category: 'signal', choiceLabel: 'Trace the light that flashed three times in the wrecks', text: 'Warm light flashes three times between two old hulls, with intervals unlike an ordinary distress call. Sai recognizes the archive signal for pages being removed.', objective: 'Find the signaler and identify which record is being moved', choices: ['Approach along the higher hull beam', 'Ask Sai to repeat the complete archive signal', 'Extinguish the storm lamp and watch for another sequence'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW through the ribs of old shipwrecks toward three warm lantern flashes in a flooded alley, an archive apprentice signaling beside the frame, protagonist absent, no text', imageSubject: 'others' },
+    { id: 'wreck-door', locationId: 'wreck', category: 'environment', choiceLabel: 'Inspect the half-exposed copper door', text: 'A brief backwash reveals half a copper door beneath the warehouse wall, with a blank harbor sheet caught in its seam. Oren says it was a tally passage, not a storehouse entrance.', objective: 'Learn where the door leads before the water returns', choices: ['Have Oren inspect the lock and union marks', 'Brace the door with the short rope', 'Remove the harbor sheet and inspect its material'], imagePrompt: 'observer medium-wide scene in a flooded wreck alley, a half-exposed copper door beneath a warehouse wall while an old stevedore examines union marks, no readable text', imageSubject: 'others' },
+    { id: 'wreck-ink', locationId: 'wreck', category: 'evidence', choiceLabel: 'Inspect black ink drops that do not disperse', text: 'Black drops float intact on the water toward a canvas-covered drain. Sai says only archive waterproof ink keeps such sharp edges.', objective: 'Trace the ink and learn whether someone just left the archive', choices: ['Use the spacing to estimate movement speed', 'Lift the canvas and inspect the drain', 'Have Sai compare a drop with the route ledger'], imagePrompt: 'third-person environmental close shot of distinct black waterproof ink droplets floating on dark teal floodwater toward a canvas-covered drain, no people, no text', imageSubject: 'environment' },
+    { id: 'wreck-anchor-chain', locationId: 'wreck', category: 'environment', choiceLabel: 'Find who pulled the anchor chain underwater', text: 'An anchor chain snaps taut beneath the water and trails bubbles along the wreck ribs. Mira sees its far end turn toward the archive rear wall, where no public passage exists.', objective: 'Follow the anchor chain to the hidden route behind the archive', choices: ['Read the bubbles to track the chain movement', 'Have Mira mark where the rear wall meets the current', 'Secure the chain with the short rope'], imagePrompt: 'FIRST-PERSON PLAYER-EYE VIEW over dark floodwater where a taut anchor chain releases bubbles toward the rear wall of a wreck archive, a navigator pointing beside the frame, protagonist out of view, no text', imageSubject: 'others' },
+  ]
+}
+
 const shared = {
   schemaVersion: 1 as const,
   id: 'seventh-dock',
@@ -60,8 +83,9 @@ const shared = {
   imageDirector: {
     maxQuietTurns: 4,
     softCooldownTurns: 2,
-    guaranteedTriggers: ['new-location', 'rare-item', 'party-change', 'chapter-checkpoint'],
+    guaranteedTriggers: ['new-location', 'rare-item', 'party-change', 'chapter-checkpoint', 'character-expression'],
     softTriggers: ['relationship-change', 'objective-change', 'skill-outcome'],
+    perspective: { ordinary: 'balanced', importantDialogue: 'first-person', newLocation: 'observer' },
   } satisfies StoryImageDirector,
   audioTheme: {
     material: 'harbor' as const, bpm: 54, rootHz: 110, scale: [0, 3, 5, 7, 10],
@@ -80,27 +104,31 @@ export const seventhDock: StoryCartridge = {
   copy: { title: '第七码头', subtitle: '涨潮前的港城手记', promise: '世界记得你选择了谁，也记得你放弃了谁。', enter: '翻开第一程', continue: '继续这段旅程', customAction: '写下自己的行动', itemImagingTitle: '潮痕正在显影', itemImagingBody: '你摊开行囊，港务纸页开始按这座城的光线与材质记录每件物品。第一幅显影完成后，其余记录会在后台继续。' },
   director: storyDirector('zh'),
   dangerDirector: dangerDirector('zh'),
+  presetEventDirector: { events: presetEvents('zh') },
   initialFacts: {},
-  domainRules: [
+  domainRules: { rules: [
     {
-      id: 'opening-traces', when: { factUnset: ['opening-method'] }, action: { exact: ['检查外堤上的测量痕迹'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'traces' }, { type: 'fact', key: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '潮前 01:52' }, { type: 'objective', value: '判断反向潮标是路线还是警告' }],
+      id: 'opening-traces', intent: '检查外堤测量痕迹', match: ['检查外堤上的测量痕迹'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: '你已经选择过进入港区的方法' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'traces' }, { type: 'fact', id: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '潮前 01:52' }, { type: 'objective', value: '判断反向潮标是路线还是警告' }],
       successText: '你沿湿石缝找出被盐渍盖住的铜钉线。弥拉压低防潮灯，光下最后三步测量痕迹显然被人故意磨掉；更深处却藏着一枚反向刻入的潮标。测绘员留下的不是完整路线，而是一条只允许谨慎的人继续读下去的警告。',
       successChoices: ['沿反向潮标进入沉船巷', '请弥拉解释这种暗号', '先在高处确认警戒队的位置'],
     },
     {
-      id: 'opening-mira', when: { factUnset: ['opening-method'] }, action: { exact: ['先问弥拉为什么隐瞒警戒队'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'mira' }, { type: 'fact', key: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '潮前 02:02' }, { type: 'objective', value: '决定是否用弥拉掌握的旧警戒路线进入沉船巷' }],
+      id: 'opening-mira', intent: '追问弥拉与警戒队的关系', match: ['先问弥拉为什么隐瞒警戒队'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: '你已经选择过进入港区的方法' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'mira' }, { type: 'fact', id: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '潮前 02:02' }, { type: 'objective', value: '决定是否用弥拉掌握的旧警戒路线进入沉船巷' }],
       successText: '你没有顺着她的话继续走，而是要求弥拉先说清楚。她从衣领里取出一枚警戒队旧铜片：测绘员失踪前，她曾负责绘制内港水路；失踪后，两个人的名字一起从档案里被删掉。她的沉默提高了风险，但她也把一条只有前警戒队员知道的入口交到了你手上。',
       successChoices: ['相信弥拉，走旧警戒路线', '先检查铜片和外堤潮标是否对应', '要求她说明警戒队今晚在找什么'],
     },
     {
-      id: 'opening-route', when: { factUnset: ['opening-method'] }, action: { exact: ['查看通往沉船巷的路线'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'route' }, { type: 'fact', key: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '潮前 01:58' }, { type: 'objective', value: '选择低处潮道或高处搬运通道进入沉船巷' }],
+      id: 'opening-route', intent: '查看通往沉船巷的路线', match: ['查看通往沉船巷的路线'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: '你已经选择过进入港区的方法' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: '你已经选择过进入港区的方法' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'route' }, { type: 'fact', id: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '潮前 01:58' }, { type: 'objective', value: '选择低处潮道或高处搬运通道进入沉船巷' }],
       successText: '你先摊开航图，把涨潮速度、警戒灯位和仓墙高度叠在一起。低处潮道最快，却会在四十分钟内封死；上方还有一条没有画在图上的旧搬运通道，入口处留着已经解散的工会绳结。路线不会替你做决定，但风险第一次有了清楚形状。',
       successChoices: ['抢走低处潮道', '寻找高处搬运通道的入口', '问弥拉谁还认得旧工会绳结'],
     },
-  ],
+  ] },
   statDefinitions: [
     { id: 'tide', label: '潮位', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: '补给', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },
@@ -161,27 +189,31 @@ export const seventhDockEn: StoryCartridge = {
   copy: { title: 'Seventh Dock', subtitle: 'A harbor journal before the tide', promise: 'The world remembers whom you chose—and whom you left behind.', enter: 'Open the first passage', continue: 'Continue the journey', customAction: 'Write your own action', itemImagingTitle: 'The tide marks are developing', itemImagingBody: 'Opening your kit lets the harbor folio record each object in this city’s own light and material language. The remaining plates will continue developing in the background.' },
   director: storyDirector('en'),
   dangerDirector: dangerDirector('en'),
+  presetEventDirector: { events: presetEvents('en') },
   initialFacts: {},
-  domainRules: [
+  domainRules: { rules: [
     {
-      id: 'opening-traces', when: { factUnset: ['opening-method'] }, action: { exact: ['Inspect the survey marks on the outer quay'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'traces' }, { type: 'fact', key: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '01:52 before tide' }, { type: 'objective', value: 'Determine whether the reversed tide mark is a route or warning' }],
+      id: 'opening-traces', intent: 'inspect the outer-quay survey marks', match: ['Inspect the survey marks on the outer quay'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: 'You already chose an approach into the harbor' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'traces' }, { type: 'fact', id: 'reversed-tide-mark-found', value: true }, { type: 'stat', id: 'tide', delta: 8 }, { type: 'stat', id: 'supplies', delta: -1 }, { type: 'clock', value: '01:52 before tide' }, { type: 'objective', value: 'Determine whether the reversed tide mark is a route or warning' }],
       successText: 'You trace the brass survey line through salt-wet joints while Mira shades the lamp. The final three measurements were deliberately ground away, but beneath them lies a tide mark cut in reverse. The missing surveyor left no complete route—only a warning meant for someone cautious enough to keep reading.',
       successChoices: ['Follow the reversed mark into Wreck Alley', 'Ask Mira to explain the cipher', 'Confirm the watch position from higher ground'],
     },
     {
-      id: 'opening-mira', when: { factUnset: ['opening-method'] }, action: { exact: ['Ask why Mira hid the watch from us'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'mira' }, { type: 'fact', key: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '02:02 before tide' }, { type: 'objective', value: 'Decide whether to use Mira’s old watch route into Wreck Alley' }],
+      id: 'opening-mira', intent: 'ask why Mira concealed the watch', match: ['Ask why Mira hid the watch from us'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: 'You already chose an approach into the harbor' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'mira' }, { type: 'fact', id: 'mira-watch-history-revealed', value: true }, { type: 'stat', id: 'alert', delta: 7 }, { type: 'clock', value: '02:02 before tide' }, { type: 'objective', value: 'Decide whether to use Mira’s old watch route into Wreck Alley' }],
       successText: 'You stop before following her lead and ask for the missing truth. Mira removes an old watch token from beneath her collar: she charted the inner harbor before the surveyor vanished, and afterward both names were removed from the archive. Her silence has raised the risk, but she now gives you an entrance only a former watch navigator would know.',
       successChoices: ['Trust Mira and take the old watch route', 'Compare her token with the quay marks', 'Ask what the watch is searching for tonight'],
     },
     {
-      id: 'opening-route', when: { factUnset: ['opening-method'] }, action: { exact: ['Study the route into Wreck Alley'] },
-      effects: [{ type: 'fact', key: 'opening-method', value: 'route' }, { type: 'fact', key: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '01:58 before tide' }, { type: 'objective', value: 'Choose the lower tide lane or upper freight passage into Wreck Alley' }],
+      id: 'opening-route', intent: 'study the route into Wreck Alley', match: ['Study the route into Wreck Alley'], matchMode: 'exact',
+      requirements: [{ type: 'fact', id: 'opening-method', notEquals: 'traces', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'mira', reason: 'You already chose an approach into the harbor' }, { type: 'fact', id: 'opening-method', notEquals: 'route', reason: 'You already chose an approach into the harbor' }],
+      effects: [{ type: 'fact', id: 'opening-method', value: 'route' }, { type: 'fact', id: 'upper-freight-route-found', value: true }, { type: 'stat', id: 'tide', delta: 5 }, { type: 'stat', id: 'alert', delta: 4 }, { type: 'clock', value: '01:58 before tide' }, { type: 'objective', value: 'Choose the lower tide lane or upper freight passage into Wreck Alley' }],
       successText: 'You overlay tide speed, watch lights, and warehouse height on the chart. The lower lane is fastest but will seal within forty minutes. Above it, an uncharted freight passage begins beneath a dissolved union’s rope knot. The route does not choose for you, but its risks finally have a clear shape.',
       successChoices: ['Take the lower tide lane now', 'Find the upper freight entrance', 'Ask Mira who still recognizes the union knot'],
     },
-  ],
+  ] },
   statDefinitions: [
     { id: 'tide', label: 'Tide', min: 0, max: 100, initial: 28, display: 'bar', warningAt: 70, dangerAt: 90 },
     { id: 'supplies', label: 'Supplies', min: 0, max: 12, initial: 8, inverse: true, display: 'number', warningAt: 3, dangerAt: 0 },

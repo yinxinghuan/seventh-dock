@@ -27,37 +27,90 @@ export function createTransitionBlock(
 }
 
 function chineseTerms(value: string): string[] {
-  const stripped = value
-    .replace(/^(?:先|去|前往|沿着?|循着?|跟随|返回|回到|留下|等待|观察|查看|检查|调查|搜索|询问|告诉|帮助|拒绝|接受|进入|使用|带着?|把|让|与|继续|尝试|绕到?|登上|走向|停下|休息|决定|选择)+/u, '')
-    .replace(/(?:一下|一遍|下一步|当前|现在|这里|那里|周围|情况|局面|方式|事情|行动|线索|变化|继续|再说|商量)/gu, '')
-  const terms = new Set<string>()
-  for (const chunk of stripped.match(/[\u3400-\u9fff]{2,}/gu) ?? []) {
-    if (chunk.length <= 6) terms.add(chunk)
-    for (let index = 0; index < chunk.length - 1; index += 1) terms.add(chunk.slice(index, index + 2))
-  }
-  return [...terms]
+  const generic = /(?:为什么|有什么用|尚未|当前|现在|原地|这里|那里|周围|四处|附近|下一步|具体|详细|详情|细节|进一步|更多|关于|信息|情况|局面|方式|事情|行动|工作|线索|变化|消息|原因|警告|通知|计划|机会|代价|保证|考虑|准备|建议|提出|追问|是否|如何|能否|一起|自己|这些|那个|那位|这个|其他|别的|哪条|那张|那场|一个|一份|一条|一段|今晚|明晚|明早|明天|清晨|下一站|到站后|暂时|早点|早早|先|再来|再|也|就|仍然|仍|已经|正在|即将|重新|还在|可能|需要|必须|只|请|不去|不|去|前往|前进|靠近|沿着?|循着?|跟随|跟|返回|回到|留下|留在|等待|观察|查看|看看|检查|调查|探索|搜索|询问|问问|问|聊聊|谈谈|搭话|商量|告诉|介绍|了解|说明|帮助|帮忙|帮|拒绝|接受|接下|答应|承诺|邀请|负责|保护|努力|撤退|专注|理会|进入|使用|换取|带着?|把|将|让|与|和|继续|尝试|绕到?|登上|走向|停下|休息|闭眼|坐到?|坐|陪|拿|收好|离开|加入|开始|完成|做完|整理|搬运|搬|寻找|找|追查|放弃|改走|送上|送去|送到|带去|唱给|压平|摆好|拦住|推到?|顶住?|堵住?|锁住?|守住?|选择|决定|谁|听|最|突然|紧急|临时|当地|额外|特别|背后|应对|解决|办法|方案|调整|规划|行程|交通|住宿|住处|房间|便宜|选项|安排|收入|保存|保留|突发|状况|不确定|全程|正式|时间|间隔|报酬|招工牌|招工|数据|记录|测量|管理方|赚点|环境|活|钱|处|她|他|它|对方|的|了|后|人|在|为|以|或)/gu
+  const stripped = value.replace(generic, ' ')
+  return [...new Set((stripped.match(/[\u3400-\u9fff]{2,8}/gu) ?? [])
+    .map((term) => term.replace(/[上旁边里内外中前后]$/u, ''))
+    .filter((term) => term.length >= 2))]
 }
 
 function englishTerms(value: string): string[] {
-  const generic = new Set(['with', 'from', 'into', 'about', 'around', 'again', 'next', 'current', 'situation', 'continue', 'inspect', 'observe', 'check', 'ask', 'tell', 'help', 'return', 'follow', 'leave', 'wait', 'take', 'make', 'try', 'use', 'look', 'move'])
+  const generic = new Set(['with', 'from', 'into', 'about', 'around', 'again', 'next', 'current', 'situation', 'continue', 'inspect', 'observe', 'check', 'ask', 'tell', 'help', 'return', 'follow', 'leave', 'wait', 'take', 'make', 'try', 'use', 'look', 'move', 'alone', 'join', 'finish', 'decline', 'accept', 'agree', 'choose', 'rent', 'stay', 'begin', 'start', 'flatten', 'pocket', 'trace', 'discuss', 'investigate', 'survey', 'push', 'brace', 'block', 'lock', 'guard', 'hold'])
   return [...new Set(value.toLocaleLowerCase().match(/[a-z]{4,}/g) ?? [])].filter((term) => !generic.has(term))
 }
 
-function choiceIsGrounded(choice: Choice, source: string, locale: StoryCartridge['locale']): boolean {
-  const terms = locale === 'zh' ? chineseTerms(choice.label) : englishTerms(choice.label)
+function choiceIsGrounded(
+  choice: Choice,
+  sources: string[],
+  locale: StoryCartridge['locale'],
+  stableEntities: string[],
+): boolean {
+  const source = sources.join(' ')
+  let termSource = choice.label
+  if (locale === 'zh') {
+    for (const entity of stableEntities.sort((left, right) => right.length - left.length)) {
+      if (entity.length < 2 || !clean(termSource).includes(clean(entity))) continue
+      if (!clean(source).includes(clean(entity))) return false
+      termSource = termSource.replaceAll(entity, ' ')
+    }
+  }
+  const terms = locale === 'zh' ? chineseTerms(termSource) : englishTerms(termSource)
   if (!terms.length) return true
   const normalizedSource = clean(source)
-  return terms.some((term) => normalizedSource.includes(clean(term)))
+  if (normalizedSource.includes(clean(choice.label))) return true
+  const canSegmentFromSources = (term: string) => {
+    const normalized = clean(term)
+    const normalizedSources = sources.map(clean)
+    const reachable = new Set([0])
+    for (let start = 0; start < normalized.length; start += 1) {
+      if (!reachable.has(start)) continue
+      for (let end = normalized.length; end >= start + 2; end -= 1) {
+        const piece = normalized.slice(start, end)
+        if (normalizedSources.some((candidate) => candidate.includes(piece))) reachable.add(end)
+      }
+    }
+    return reachable.has(normalized.length)
+  }
+  const matches = terms.filter((term) => sources.some((candidate) => clean(candidate).includes(clean(term))) || canSegmentFromSources(term))
+  return matches.length === terms.length
 }
 
-export function choicesAreGrounded(choices: Choice[], save: StorySave, cartridge: StoryCartridge): boolean {
-  const visibleHistory = save.blocks
+export function filterGroundedChoices(
+  choices: Choice[],
+  save: StorySave,
+  cartridge: StoryCartridge,
+  immediateBlocks: StoryBlock[] = save.blocks,
+): Choice[] {
+  let lastActionIndex = -1
+  for (let index = save.blocks.length - 1; index >= 0; index -= 1) {
+    const block = save.blocks[index]
+    if (block.kind === 'event' && /^action-\d+$/.test(block.id)) {
+      lastActionIndex = index
+      break
+    }
+  }
+  const recentCommittedBlocks = save.blocks.slice(lastActionIndex >= 0 ? lastActionIndex + 1 : 0)
+  const visibleTurn = [...recentCommittedBlocks, ...immediateBlocks]
     .filter((block) => block.kind !== 'image' && !block.id.startsWith('action-'))
     .map((block) => `${block.speaker ?? ''} ${block.text}`)
   const knownPeople = save.characters.filter((character) => character.status !== 'departed').map((character) => character.name)
-  const knownPlaces = save.map.filter((node) => node.visited || node.current).map((node) => node.label)
-  const knownItems = save.inventory.map((item) => item.label)
-  const priorChoices = save.choices.map((choice) => choice.label)
-  const source = [...visibleHistory, ...priorChoices, save.location, save.objective, ...knownPeople, ...knownPlaces, ...knownItems].join(' ')
-  return choices.every((choice) => choiceIsGrounded(choice, source, cartridge.locale))
+  const knownPlaces = save.map.filter((node) => node.visited || node.current).flatMap((node) => [node.label, node.detail ?? '', node.lore ?? '', ...(node.facts ?? [])])
+  const knownItems = save.inventory.flatMap((item) => [
+    item.label, item.detail ?? '', item.effect ?? '', item.lore ?? '',
+    ...(item.metrics ?? []).flatMap((metric) => [metric.label, metric.value]),
+  ])
+  const activeJobs = save.jobs.filter((job) => job.status === 'offered' || job.status === 'accepted').flatMap((job) => [job.label, job.employer ?? ''])
+  const knownStats = cartridge.statDefinitions.flatMap((definition) => [definition.label, definition.description ?? '', String(save.stats[definition.id] ?? '')])
+  const sources = [...visibleTurn, save.sceneLocation ?? save.location, save.location, save.objective, ...knownPeople, ...knownPlaces, ...knownItems, ...activeJobs, ...knownStats]
+  const stableEntities = [...knownPeople, save.sceneLocation ?? save.location, save.location, ...knownPlaces, ...knownItems, ...activeJobs, ...knownStats].filter(Boolean)
+  const quarantined = typeof save.facts.consistency_quarantined_action === 'string'
+    && save.facts.consistency_quarantined_location === save.location
+    ? clean(save.facts.consistency_quarantined_action)
+    : ''
+  return choices.filter((choice) => (!quarantined || clean(choice.label) !== quarantined)
+    && choiceIsGrounded(choice, sources, cartridge.locale, stableEntities))
+}
+
+export function choicesAreGrounded(choices: Choice[], save: StorySave, cartridge: StoryCartridge): boolean {
+  return filterGroundedChoices(choices, save, cartridge).length === choices.length
 }

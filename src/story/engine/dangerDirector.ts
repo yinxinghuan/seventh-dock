@@ -1,5 +1,6 @@
 import { t } from '../i18n'
 import type { DangerDirective, DangerOutcome, ParsedScene, StoryBlock, StoryCartridge, StoryDangerState, StorySave } from '../types'
+import { encodeChoiceRecord } from './choiceInput'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -59,9 +60,11 @@ function scheduledTurn(cartridge: StoryCartridge, cycle: number): number {
   return minimum + stableHash(`${cartridge.id}:danger-cycle:${cycle}`) % (maximum - minimum + 1)
 }
 
-function selectThreat(cartridge: StoryCartridge, cycle: number): string {
+function selectThreat(save: Pick<StorySave, 'location' | 'map'>, cartridge: StoryCartridge, cycle: number): string {
   const threats = cartridge.dangerDirector?.threatPalette ?? []
-  return threats[stableHash(`${cartridge.id}:threat:${cycle}`) % Math.max(1, threats.length)] ?? 'an immediate world-appropriate threat'
+  const currentNode = save.map.find((node) => node.current)
+  const placeKey = currentNode?.id ?? save.location
+  return threats[stableHash(`${cartridge.id}:threat:${placeKey}:${cycle}`) % Math.max(1, threats.length)] ?? 'an immediate world-appropriate threat'
 }
 
 function dangerCheck(save: StorySave, cartridge: StoryCartridge, actionId: string, severity: number) {
@@ -88,9 +91,10 @@ export function buildDangerDirective(save: StorySave, cartridge: StoryCartridge,
   if (!config) return undefined
   const state = normalizeDangerState(save.danger)
   const risk = riskSeverity(save, cartridge)
+  if (state.phase === 'calm' && risk < 5 && save.scene < Math.max(0, Math.floor(config.graceScenes ?? 6))) return undefined
   const baseSeverity = Math.max(risk, 2 + stableHash(`${cartridge.id}:severity:${state.cycle}`) % 2)
   const severity = clamp(state.severity > 1 ? Math.max(state.severity, risk) : baseSeverity, 1, 5)
-  const threat = state.currentThreat ?? selectThreat(cartridge, state.cycle)
+  const threat = state.currentThreat ?? selectThreat(save, cartridge, state.cycle)
   const shared = { severity, threat, methods: config.methods, physicalCombat: config.physicalCombat } as const
 
   if (state.phase === 'warning') return { phase: 'confrontation', ...shared }
@@ -111,12 +115,77 @@ export function dangerDirectiveContract(directive: DangerDirective | undefined):
       : 'Physical combat is one valid method, never the only method.'
   const tag = `[encounter: phase="${directive.phase}" kind="${directive.threat}" severity="${directive.severity}"${directive.check ? ` outcome="${directive.check.outcome}"` : ' outcome="active"'}]`
   if (directive.phase === 'warning') return `
-DANGER DIRECTIVE IS AUTHORITATIVE. This turn MUST introduce a readable early warning of this current-world threat: ${directive.threat}. Severity ${directive.severity}/5. Do not resolve or skip it yet. Let the player notice, prepare for, investigate, or avoid it. The three choices must be concrete versions of: ${methods}. ${combat} Emit this exact encounter tag: ${tag}`
+DANGER DIRECTIVE IS AUTHORITATIVE. This turn MUST introduce a readable early warning of this current-world threat: ${directive.threat}. Severity ${directive.severity}/5. Do not resolve or skip it yet. Let the player notice, prepare for, investigate, or avoid it. Offer one to five concrete, materially distinct choices drawn only from methods that are executable now: ${methods}. Do not pad or truncate to three. ${combat} Emit this exact encounter tag: ${tag}`
   if (directive.phase === 'confrontation') return `
-DANGER DIRECTIVE IS AUTHORITATIVE. Escalate the established threat into an immediate obstacle or confrontation now: ${directive.threat}. Severity ${directive.severity}/5. Do not resolve it before the player chooses a response. The three choices must be concrete and materially different versions of: ${methods}. ${combat} Emit this exact encounter tag: ${tag}`
+DANGER DIRECTIVE IS AUTHORITATIVE. Escalate the established threat into an immediate obstacle or confrontation now: ${directive.threat}. Severity ${directive.severity}/5. Do not resolve it before the player chooses a response. Offer one to five concrete, materially distinct choices drawn only from methods that are executable now: ${methods}. Do not pad or truncate to three. ${combat} Emit this exact encounter tag: ${tag}`
   const check = directive.check!
   return `
 DANGER DIRECTIVE IS AUTHORITATIVE. Resolve the player's chosen response to the established threat now: ${directive.threat}. The local engine has already fixed the check and refresh cannot reroll it: skill="${check.skill}", dc=${check.dc}, roll=${check.roll}, modifier=${check.modifier}, total=${check.total}, outcome=${check.outcome}. Narrate exactly that outcome and its immediate aftermath; never replace the roll, soften a failure into success, or invent a second check. Emit [skill_check: skill="${check.skill}" dc="${check.dc}" rolls="${check.roll}" modifier="${check.modifier}" total="${check.total}" result="${check.outcome}"] and this exact encounter tag: ${tag}. End at the next decision after the consequence. ${combat}`
+}
+
+/** Authoritative, executable replies for the rare case where every generated
+ * danger reply is rejected. They come from the cartridge's configured danger
+ * methods, not from generic location/objective recovery copy. */
+export function dangerDirectiveChoices(directive: DangerDirective, scene: number): StorySave['choices'] {
+  return contextualDangerChoiceLabels(directive.threat, directive.methods, /[\u3400-\u9fff]/u.test(directive.methods.join('')) ? 'zh' : 'en')
+    .slice(0, 5)
+    .map((label, index) => ({ id: `danger-${scene}-${index}`, label }))
+}
+
+/** Emergency fallback labels must carry the actual threat into the button.
+ * Bare method names such as “discuss what to do” invite the model to abandon
+ * the confrontation on the next turn. */
+export function contextualDangerChoiceLabels(
+  threat: string | undefined,
+  methods: string[],
+  locale: StoryCartridge['locale'],
+): string[] {
+  const subject = (threat ?? '')
+    .replace(/[“”"'‘’。.!！?？；;：:]+/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+  if (!subject) return [...new Set(methods.map((method) => method.trim()).filter(Boolean))]
+  const concise = subject.length > (locale === 'zh' ? 26 : 56)
+    ? `${subject.slice(0, locale === 'zh' ? 25 : 55).trim()}…`
+    : subject
+  const labels = locale === 'zh'
+    ? [`确认“${concise}”的具体情况`, `立即应对“${concise}”`, `撤离“${concise}”影响的现场`]
+    : [`Confirm the facts about ${concise}`, `Respond directly to ${concise}`, `Withdraw from the scene of ${concise}`]
+  return [...new Set(labels)].filter((label) => label.length <= 96)
+}
+
+/** Rewrite only exact legacy danger-method labels that are still actionable in
+ * the latest saved scene. Historical actions remain untouched. */
+export function repairLegacyDangerMethodChoices<T extends {
+  scene: number
+  choices: StorySave['choices']
+  blocks: StorySave['blocks']
+  facts?: StorySave['facts']
+}>(candidate: T, cartridge: StoryCartridge): T {
+  const config = cartridge.dangerDirector
+  if (!config?.legacyMethods?.length || !candidate.choices.length) return candidate
+  const replacements = new Map<string, string>()
+  config.legacyMethods.forEach((methods) => methods.forEach((label, index) => {
+    replacements.set(label.trim(), config.methods[index])
+  }))
+  let changed = false
+  const choices = candidate.choices.map((choice) => {
+    const label = replacements.get(choice.label.trim())
+    if (!label || label === choice.label) return choice
+    changed = true
+    return { ...choice, label }
+  })
+  if (!changed) return candidate
+  const recordId = `choices-${candidate.scene}`
+  return {
+    ...candidate,
+    choices,
+    blocks: candidate.blocks.map((block) => block.id === recordId && block.kind === 'choices'
+      ? { ...block, text: encodeChoiceRecord(choices) }
+      : block),
+    ...(candidate.facts ? {
+      facts: { ...candidate.facts, 'legacy-danger-method-copy-repaired-v1': true },
+    } : {}),
+  } as T
 }
 
 function hasMeaningfulCost(before: StorySave, after: StorySave, cartridge: StoryCartridge): boolean {
@@ -203,7 +272,7 @@ export function settleDangerTurn(
   if (encounter?.type === 'encounter') {
     const severity = clamp(Math.floor(encounter.severity ?? 2), 1, 5)
     if (encounter.phase === 'warning' || encounter.phase === 'confrontation') {
-      after.danger = { ...state, phase: encounter.phase, safeTurns: 0, severity, currentThreat: encounter.kind ?? state.currentThreat ?? selectThreat(cartridge, state.cycle) }
+      after.danger = { ...state, phase: encounter.phase, safeTurns: 0, severity, currentThreat: encounter.kind ?? state.currentThreat ?? selectThreat(after, cartridge, state.cycle) }
       return effects
     }
     after.danger = {

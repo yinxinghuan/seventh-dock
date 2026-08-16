@@ -2,6 +2,7 @@ export type CartridgeId = string
 export type DrawerId = 'party' | 'map' | 'inventory' | 'log'
 export type StoryMode = 'demo' | 'aigram' | 'remote'
 export type Locale = 'zh' | 'en'
+export type StoryFactValue = string | number | boolean
 
 export interface ThemeTokens {
   outer: string; surface: string; paper: string; ink: string; muted: string; accent: string; danger: string; gold: string
@@ -25,14 +26,34 @@ export interface StatDefinition {
   initial: number
   inverse?: boolean
   display?: 'bar' | 'number'
+  unit?: string
+  description?: string
   warningAt?: number
   dangerAt?: number
   maxDelta?: number
+  domainMaxDelta?: number
+  floorRule?: {
+    threshold?: number
+    enteredText: string
+    blockedText: string
+    recoveryChoices: [string, string, string]
+    allowedDomainRuleIds: string[]
+  }
 }
-export type StoryFactValue = string | number | boolean
 export interface SkillDefinition { id: string; label: string; value: number }
 export type CharacterStatus = 'known' | 'companion' | 'departed'
-export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[]; detail?: string; lore?: string; initialStatus?: CharacterStatus; hiddenUntilIntroduced?: boolean }
+export type CharacterVisualIdentityStatus = 'unanchored' | 'queued' | 'generating' | 'anchored' | 'failed'
+export interface CharacterVisualIdentity {
+  status: CharacterVisualIdentityStatus
+  version: number
+  source: 'authored' | 'generated'
+  anchorTaskId?: string
+  appearance: string
+  immutableTraits: string[]
+  wardrobe: string[]
+  forbiddenDrift: string[]
+}
+export interface CharacterDefinition { id: string; name: string; role: string; vitality: number; stress: number; skills: SkillDefinition[]; detail?: string; lore?: string; initialStatus?: CharacterStatus; hiddenUntilIntroduced?: boolean; visualIdentity?: CharacterVisualIdentity }
 export interface StoryCharacter extends CharacterDefinition {
   status: CharacterStatus
   origin: 'cartridge' | 'generated'
@@ -41,14 +62,15 @@ export interface StoryCharacter extends CharacterDefinition {
   joinedAtScene?: number
   leftAtScene?: number
 }
-export interface Choice { id: string; label: string }
+export interface Choice { id: string; label: string; targetLocationId?: string }
 export type ImageBlockStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed'
-export const ITEM_IMAGE_STYLE_VERSION = 2
-export const SCENE_IMAGE_PROMPT_VERSION = 4
+export const ITEM_IMAGE_STYLE_VERSION = 3
+export const SCENE_IMAGE_PROMPT_VERSION = 7
 export type SceneImageSubject = 'player' | 'environment' | 'others'
-export interface StoryBlock { id: string; kind: 'narration' | 'dialogue' | 'check' | 'change' | 'event' | 'summary' | 'image'; text: string; speaker?: string; tone?: string; data?: Record<string, string | number> }
-export interface EntityMetric { label: string; value: string }
-export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; visited?: boolean; detail?: string; lore?: string; facts?: string[] }
+export type SceneImagePerspective = 'first-person' | 'observer'
+export interface StoryBlock { id: string; kind: 'narration' | 'dialogue' | 'check' | 'change' | 'event' | 'summary' | 'image' | 'choices'; text: string; speaker?: string; tone?: string; data?: Record<string, string | number> }
+export interface EntityMetric { id?: string; label: string; value: string }
+export interface MapNode { id: string; label: string; connectedTo?: string; current?: boolean; visited?: boolean; detail?: string; lore?: string; facts?: string[]; routeHints?: string[]; capabilities?: string[] }
 export interface InventoryItem {
   id: string
   label: string
@@ -86,9 +108,12 @@ export interface StoryDangerDirector {
   minSafeTurns: number
   maxSafeTurns: number
   cooldownTurns: number
+  graceScenes?: number
   escalationStats: string[]
   threatPalette: string[]
   methods: [string, string, string]
+  /** Previous player-facing copies, kept only to migrate live choices in old saves. */
+  legacyMethods?: [string, string, string][]
   physicalCombat: 'none' | 'rare' | 'occasional'
   resolution: {
     skill: string
@@ -108,6 +133,76 @@ export interface StoryDangerState {
   currentThreat?: string
   lastOutcome: DangerOutcome
   lastResolvedScene?: number
+}
+
+export type DomainRequirement =
+  | { type: 'map'; nodeId?: string; notNodeId?: string; visited?: boolean; reason: string }
+  | { type: 'capability'; id: string; reason: string }
+  | { type: 'stat'; id: string; min?: number; max?: number; reason: string }
+  | { type: 'fact'; id: string; equals?: StoryFactValue; notEquals?: StoryFactValue; min?: number; max?: number; reason: string }
+  | { type: 'item'; id: string; minCount: number; reason: string }
+  | { type: 'character'; id: string; status: CharacterStatus; reason: string }
+  | { type: 'danger'; phases: DangerPhase[]; reason: string }
+export type DomainEffect =
+  | { type: 'stat'; id: string; delta: number }
+  | { type: 'fact'; id: string; value: StoryFactValue }
+  | { type: 'fact-add'; id: string; delta: number }
+  | { type: 'inventory'; action: 'add' | 'remove'; itemId: string; count: number; item?: InventoryItem }
+  | { type: 'party'; change: 'add' | 'remove'; characterId: string }
+  | { type: 'map'; nodeId: string }
+  | { type: 'danger'; outcome: Exclude<DangerOutcome, 'none'> }
+  | { type: 'objective'; value: string }
+  | { type: 'clock'; value: string }
+  | { type: 'clock-add'; minutes: number }
+  | { type: 'session'; ended: boolean; reason?: string }
+export interface DomainActionRule {
+  id: string
+  intent: string
+  match: string[]
+  matchMode?: 'contains' | 'exact'
+  intentGuard?: 'rest-commitment'
+  dangerPolicy?: 'advance' | 'suppress' | 'withdraw'
+  successContinuation?: 'replace' | 'resume' | 'derive' | 'checkpoint'
+  rejectionContinuation?: 'replace' | 'resume' | 'derive'
+  repeatPolicy?: { scope: 'location-day'; reason: string }
+  requirements: DomainRequirement[]
+  effects: DomainEffect[]
+  successText: string
+  successChoices: string[]
+  rejectionChoices?: string[]
+}
+export interface DomainDerivedItemMetric { itemId: string; metricId: string; label: string; factId: string; maximum: number; mode: 'remaining-from-used' }
+export type DomainDerivedFact =
+  | { factId: string; mode: 'owned-item-count'; itemIds: string[] }
+  | { factId: string; mode: 'owned-item-threshold'; itemIds: string[]; threshold: number }
+export interface DomainObjectiveTransition { from: string; to: string; requirements: DomainRequirement[] }
+export interface StoryDomainRules {
+  rules: DomainActionRule[]
+  legacyChoiceSets?: string[][]
+  derivedItemMetrics?: DomainDerivedItemMetric[]
+  derivedFacts?: DomainDerivedFact[]
+  objectiveTransitions?: DomainObjectiveTransition[]
+}
+export interface DomainActionResolution {
+  status: 'accepted' | 'rejected'
+  ruleId: string
+  intent: string
+  effects: DomainEffect[]
+  reasons: string[]
+  successText: string
+  successChoices: string[]
+  continuation: 'replace' | 'resume' | 'derive' | 'checkpoint'
+  dangerPolicy?: DomainActionRule['dangerPolicy']
+}
+
+export interface JobContract {
+  id: string
+  label: string
+  employer?: string
+  wage: number
+  status: 'offered' | 'accepted' | 'settled' | 'cancelled'
+  offeredAtScene: number
+  settledAtScene?: number
 }
 
 export interface DangerCheck {
@@ -136,39 +231,42 @@ export type SceneImageTrigger =
   | 'relationship-change'
   | 'objective-change'
   | 'skill-outcome'
+  | 'character-expression'
 
 export interface StoryImageDirector {
   maxQuietTurns: number
   softCooldownTurns: number
   guaranteedTriggers: SceneImageTrigger[]
   softTriggers: SceneImageTrigger[]
+  perspective?: {
+    ordinary: 'observer' | 'balanced' | 'first-person-preferred'
+    importantDialogue?: SceneImagePerspective
+    newLocation?: SceneImagePerspective
+  }
 }
 
-export type DomainEffect =
-  | { type: 'fact'; key: string; value: StoryFactValue }
-  | { type: 'stat'; id: string; delta: number }
-  | { type: 'map'; location: string }
-  | { type: 'clock'; value: string }
-  | { type: 'objective'; value: string }
-  | { type: 'character'; id: string; status?: CharacterStatus }
+export type PresetEventCategory = 'local-work' | 'daily-life' | 'environment' | 'visitor' | 'cross-region' | 'evidence' | 'neighbor' | 'community' | 'signal'
 
-export interface DomainRule {
+export interface PresetEventDefinition {
   id: string
-  when: { factEquals?: Record<string, StoryFactValue>; factUnset?: string[] }
-  action: { exact?: string[]; includes?: string[] }
-  effects: DomainEffect[]
-  successText: string
-  successChoices: [string, string, string]
-  rejectionText?: string
-  rejectionChoices?: [string, string, string]
+  locationId: string
+  category: PresetEventCategory
+  choiceLabel: string
+  text: string
+  objective: string
+  choices: [string, ...string[]]
+  imagePrompt: string
+  imageSubject?: SceneImageSubject
 }
 
-export interface DomainActionResolution {
-  kind: 'accepted' | 'rejected'
-  ruleId: string
-  text: string
-  effects: DomainEffect[]
-  choices: [string, string, string]
+export interface StoryPresetEventDirector {
+  events: PresetEventDefinition[]
+}
+
+export interface PresetEventResolution {
+  eventId: string
+  category: PresetEventCategory
+  turn: DemoTurn
 }
 
 export interface StoryCartridge {
@@ -188,30 +286,50 @@ export interface StoryCartridge {
   sceneImageAvoid?: string
   transitionAnchor?: string
   imageDirector?: StoryImageDirector
+  presetEventDirector?: StoryPresetEventDirector
   director?: StoryDirector
   dangerDirector?: StoryDangerDirector
-  domainRules?: DomainRule[]
+  domainRules?: StoryDomainRules
   initialFacts?: Record<string, StoryFactValue>
   statDefinitions: [StatDefinition, StatDefinition, StatDefinition]
   drawerLabels: Record<DrawerId, string>
-  opening: { location: string; time: string; objective: string; imagePrompt: string; blocks: StoryBlock[]; choices: Choice[] }
+  opening: {
+    location: string
+    time: string
+    objective: string
+    imagePrompt: string
+    blocks: StoryBlock[]
+    choices: Choice[]
+    deterministicTurns?: Record<string, DemoTurn>
+  }
   characters: CharacterDefinition[]
   initialPartyMemberIds?: string[]
   initialMap: MapNode[]
   initialInventory: InventoryItem[]
+  deterministicChoiceTurns?: DeterministicChoiceTurn[]
   demoTurns: DemoTurn[]
 }
 
-export interface DemoTurn { match: string[]; content: string; imagePrompt?: string; imageSubject?: SceneImageSubject }
+export interface DemoTurn { match: string[]; content: string; imagePrompt?: string; imageSubject?: SceneImageSubject; imageCharacterId?: string }
+export interface DeterministicChoiceTurn {
+  action: string
+  turn: DemoTurn
+  when?: {
+    locations?: string[]
+    characterIds?: string[]
+    jobs?: Array<{ id: string; statuses?: JobContract['status'][] }>
+  }
+}
 
 export interface StorySave {
-  version: 9
+  version: 10
   cartridgeId: CartridgeId
   locale: Locale
   remoteChatId?: string
   entered: boolean
   scene: number
   location: string
+  sceneLocation?: string
   time: string
   objective: string
   decisionContext: string
@@ -224,6 +342,7 @@ export interface StorySave {
   characters: StoryCharacter[]
   partyMemberIds: string[]
   relationships: RelationshipEvent[]
+  jobs: JobContract[]
   danger: StoryDangerState
   sessionEnded: boolean
   lastActionId?: string
@@ -243,11 +362,14 @@ export type ParsedCommand =
   | { type: 'skill_check'; skill: string; dc: number; roll: number; modifier: number; total: number; result: string }
   | { type: 'state'; value: string }
   | { type: 'clock'; value: string }
-  | { type: 'fact'; key: string; value: StoryFactValue }
-  | { type: 'map_update'; location: string; connectedTo?: string; detail?: string; lore?: string; facts?: string[] }
+  | { type: 'map_update'; location: string; locationId?: string; connectedTo?: string; detail?: string; lore?: string; facts?: string[]; routeHints?: string[] }
   | { type: 'inventory'; action: 'add' | 'remove'; item: string; count: number; rarity?: 'common' | 'rare' | 'legendary'; detail?: string; effect?: string; lore?: string; metrics?: EntityMetric[]; imagePrompt?: string }
+  | { type: 'job'; action: 'offer' | 'accept' | 'settle' | 'cancel'; id: string; label?: string; employer?: string; wage?: number }
+  | { type: 'scene_location'; location: string }
+  | { type: 'image_location'; location: string }
+  | { type: 'dialogue_focus'; speaker: string; expression?: string }
   | { type: 'reputation'; npc: string; action: string }
-  | { type: 'character_update'; characterId?: string; character: string; role?: string; detail?: string; lore?: string; vitality?: number; stress?: number; skills?: SkillDefinition[] }
+  | { type: 'character_update'; characterId?: string; character: string; role?: string; detail?: string; lore?: string; vitality?: number; stress?: number; skills?: SkillDefinition[]; visualAppearance?: string; visualTraits?: string[]; visualWardrobe?: string[]; visualForbidden?: string[] }
   | { type: 'party_change'; characterId?: string; character: string; change: 'add' | 'remove'; role?: string; detail?: string; lore?: string; vitality?: number; stress?: number; skills?: SkillDefinition[] }
   | { type: 'encounter'; phase: 'warning' | 'confrontation' | 'resolution'; kind?: string; severity?: number; outcome?: DangerOutcome }
   | { type: 'session_end'; reason: string }
@@ -260,6 +382,8 @@ export interface AdapterContext {
   actionId: string
   locale: Locale
   dangerDirective?: DangerDirective
+  domainResolution?: DomainActionResolution
+  repair?: { draft: string; violations: string[] }
 }
 
 export interface AdapterProgress {
@@ -271,6 +395,7 @@ export interface AdapterResult {
   content: string
   imagePrompt?: string
   imageSubject?: SceneImageSubject
+  imageCharacterId?: string
 }
 
 export interface StoryAdapter {

@@ -46,6 +46,8 @@
 
 场景出图采用 AI 提议 + 本地 v4 导演结构。Aigram 与 remote Adapter 同时提取 `[image_prompt]` 与主体分类；导演保留与本轮正文一致的具体镜头，再叠加当前可见剧情、最新地点和统一画风。命中第七码头开场残留词的提议会被丢弃；残留词只在本地检测，不作为否定清单发送给模型。玩家执行画面主动作时分类必须是 `player`，不能由其他角色替换；旧存档中未完成的 v1–v3 图片任务会升级为 v4，已完成历史图不自动重画。AI 未提议时，`engine/imageDirector.ts` 按首次抵达、稀有物品、队伍变化和章节节点强制补图，关系/目标/检定变化使用 2 回合冷却，连续 4 个有效回合无图时按可见结果兜底。开场 prompt 只用于 scene 0；`MapNode.visited` 区分首次抵达与回访；每轮最多追加一个带 `source/reason/promptVersion/playerVisible` 的内联图片块，仍进入严格串行 worker。
 
+V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirector`。普通镜头采用 `balanced` 确定性分配，重要对话强制第一人称、新地点强制 observer；第一人称不传玩家头像。8 个双语预设事件按当前 `locationId` 绑定，只在没有目标、决定上下文、开放工作或危险时进入恢复选项，并通过本地 reducer 原子提交。`_qa/world-director.ts` 检查事件地点、1–5 个后续、双语 ID 与 50/50 预设图片视角。
+
 语言优先级为 query `lang`、存档和浏览器系统；明确中文/英文自由输入会切换后续 Shell、Cartridge 内容与远程回复约束，历史块保持原文。
 
 文字大小由顶部 `TextSizeControl` 提供 `small / standard / large` 三档，写入 `localStorage.alteru_story_text_size`，通过 `.st-shell[data-text-size]` 的 CSS 变量只调整阅读层级。它不进入 StorySave，也不触发云端剧情存档写入。

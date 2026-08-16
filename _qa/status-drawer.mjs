@@ -1,0 +1,58 @@
+import { chromium } from 'playwright'
+import { mkdirSync } from 'node:fs'
+import { installMediaMock } from './media-mock.mjs'
+
+const browser = await chromium.launch({ headless: true })
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' })
+await page.route('https://images.aiwaves.tech/alteru/guest-shell.js', (route) => route.fulfill({ contentType: 'application/javascript', body: '' }))
+await installMediaMock(page)
+await page.goto('http://127.0.0.1:4175/?cartridge=the-wild-road&lang=zh&user_name=Status-QA', { waitUntil: 'networkidle' })
+await page.evaluate(() => localStorage.clear())
+await page.reload({ waitUntil: 'networkidle' })
+await page.getByRole('button', { name: '走向十字路口' }).click()
+
+const relationshipButton = page.locator('.st-world-button')
+const relationshipButtonBox = await relationshipButton.boundingBox()
+if (!relationshipButtonBox || relationshipButtonBox.width < 44 || relationshipButtonBox.height < 44) throw new Error('relationship folio touch target is too small')
+if (await relationshipButton.locator(':scope > span').count()) throw new Error('relationship header control must remain icon-only')
+if (await relationshipButton.locator('svg').count() !== 1) throw new Error('relationship header control is missing its folio SVG')
+await relationshipButton.click()
+await page.locator('.st-relationship-overview').waitFor({ state: 'visible' })
+if (await page.locator('.st-drawer-tabs svg').count() !== 4) throw new Error('world drawer tabs do not share the four-icon SVG system')
+if (await page.locator('.st-roster__group').count() < 1) throw new Error('relationship panel does not expose grouped people and journey sections')
+await page.screenshot({ path: '_qa/ui/platform-layout-relationship-overview-390x844.png' })
+await page.setViewportSize({ width: 320, height: 568 })
+await page.locator('.st-drawer > section').evaluate((node) => { node.scrollTop = 0 })
+await page.waitForTimeout(100)
+const relationshipOverflow = await page.locator('.st-drawer > section').evaluate((node) => node.scrollWidth - node.clientWidth)
+if (relationshipOverflow > 1) throw new Error(`relationship overview overflows narrow mobile by ${relationshipOverflow}px`)
+await page.screenshot({ path: '_qa/ui/platform-layout-relationship-overview-320x568.png' })
+await page.setViewportSize({ width: 390, height: 844 })
+await page.locator('.st-drawer > section > header button').last().click()
+
+const statButtons = page.locator('.st-chat-stat')
+if (await statButtons.count() !== 3) throw new Error('header does not expose exactly three interactive stats')
+for (const button of await statButtons.all()) {
+  const box = await button.boundingBox()
+  if (!box || box.height < 44) throw new Error(`stat touch target is too small: ${JSON.stringify(box)}`)
+}
+await statButtons.first().click()
+await page.locator('.st-player-detail').waitFor({ state: 'visible' })
+if (await page.locator('.st-player-status-card').count() !== 3) throw new Error('player detail does not show all three stats')
+if (await page.locator('.st-player-status-card.is-focused').count() !== 1) throw new Error('clicked header stat is not focused in player detail')
+if (await page.locator('.st-world-detail__links button').count() !== 3) throw new Error('player detail does not link to world sections')
+await page.waitForTimeout(350)
+
+mkdirSync('_qa/ui', { recursive: true })
+await page.screenshot({ path: '_qa/ui/platform-layout-player-status-detail-390x844.png' })
+await page.setViewportSize({ width: 320, height: 568 })
+const overflow = await page.locator('.st-drawer > section').evaluate((node) => node.scrollWidth - node.clientWidth)
+if (overflow > 1) throw new Error(`player detail overflows narrow mobile by ${overflow}px`)
+await page.screenshot({ path: '_qa/ui/platform-layout-player-status-detail-320x568.png' })
+await page.setViewportSize({ width: 390, height: 844 })
+await page.getByRole('button', { name: '行囊' }).click()
+await page.locator('.st-inventory').waitFor({ state: 'visible' })
+await page.screenshot({ path: '_qa/ui/platform-layout-player-status-inventory-link-390x844.png' })
+
+console.log('status drawer ok · icon-only relationship folio · grouped relationship overview · three tappable stats · focused player detail')
+await browser.close()
