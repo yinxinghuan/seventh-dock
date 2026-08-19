@@ -30,7 +30,8 @@
     "test:choice-quality": "node --import tsx _qa/recommended-choice-quality.ts",
     "test:resume": "node --import tsx _qa/reading-anchor.ts",
     "test:domain": "node --import tsx _qa/domain-live.ts",
-    "test:world-director": "node --import tsx _qa/world-director.ts"
+    "test:world-director": "node --import tsx _qa/world-director.ts",
+    "test:authority-shadow": "node --import tsx _qa/authority-shadow.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

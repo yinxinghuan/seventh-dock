@@ -80,3 +80,8 @@ V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirecto
 - Cartridge 通过 `transitionAnchor` 声明“弥拉的航线册与当前潮标”；`continuity.ts` 生成地点桥接、校验可选 `[situation]` 短摘要没有复制本回合正文，并核验选项名词是否已有可见依据。
 - StorySave v9 清除旧版本机械截断的 `decisionContext`；普通回合保持为空，只有合格的显式 `[situation]` 才显示“眼前”。`protocol.ts` 同时移除模型误写的状态清单但保留 `[widget]`，`StoryShell.tsx` 依据权威 `stat/delta` 渲染增减签条与顶部单项动态反馈。
 - `_qa/continuity-gate.ts` 以未登场的“国王 / 快递员 / 玻璃王国”作为反例，同时断言中转锚点先于目的地正文。
+
+## 行动权威影子审计（2026-08-20）
+
+- `engine/authorityShadow.ts` 使用本游戏现有领域 reducer 审计每个可见选项，输出 `accepted / rejected / open` 与非终局空 tray 标记；它只写页面内存，最多 100 条，不影响 UI、存档或远端数据。
+- `?authority_shadow=0` 可关闭记录；`npm run test:authority-shadow` 固定选择零改写与空 tray 探测合同。

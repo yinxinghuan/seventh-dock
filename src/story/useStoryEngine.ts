@@ -13,6 +13,7 @@ import { prepareTurnCandidate } from './engine/turnPipeline'
 import { shouldUsePlayerImageReference, upgradePendingSceneImagePrompts } from './engine/imageDirector'
 import { buildDangerDirective, normalizeDangerState, repairLegacyDangerMethodChoices } from './engine/dangerDirector'
 import { activeStatFloorRule, domainSuppressesDanger, repairDomainRepeatState, repairEndedSessionChoices, repairLegacyDomainChoiceReset, resolveDomainAction, statFloorChoices, syncDomainDerivedState } from './engine/domainRules'
+import { recordAuthorityShadowSample } from './engine/authorityShadow'
 import { repairUnsettledContractPayment } from './engine/paymentConsistency'
 import { resolveDeterministicChoiceTurn, resolveDeterministicOpeningTurn } from './engine/authoredTurns'
 import { resolvePresetEventTurn } from './engine/presetEventDirector'
@@ -179,6 +180,8 @@ export function useStoryEngine(cartridge: StoryCartridge, initialMode: StoryMode
   const archiveRef = useRef<StoryArchive>({ version: 1, worlds: {} })
   const { generate, resolveTaskUrl } = useGenImage()
   const persist = cloud.persist
+
+  useEffect(() => { recordAuthorityShadowSample(save, cartridge) }, [cartridge, save])
 
   useEffect(() => {
     if (!cloud.loaded || seeded.current) return
