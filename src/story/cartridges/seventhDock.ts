@@ -93,7 +93,7 @@ const shared = {
   audioTheme: {
     recorded: { music: { src: audioThemeUrl, gain: .18 }, ambience: { src: audioAmbienceUrl, gain: .3 }, cues: { discovery: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 }, relationship: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 }, summary: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 } } },
     material: 'harbor' as const, bpm: 54, rootHz: 110, scale: [0, 3, 5, 7, 10],
-    levels: { music: .12, ambient: .1, sfx: .18, master: .24 },
+    levels: { music: .12, ambient: .1, sfx: .045, master: .24 },
     tension: [
       { statId: 'tide', direction: 'high' as const, weight: .45 },
       { statId: 'alert', direction: 'high' as const, weight: .4 },
