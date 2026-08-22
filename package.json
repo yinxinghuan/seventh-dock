@@ -1,6 +1,6 @@
 {
   "name": "seventh-dock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,6 +22,8 @@
     "test:v9-migration": "node --import tsx _qa/v9-migration.ts",
     "test:state-integrity": "node --import tsx _qa/state-integrity.ts",
     "test:danger": "node --import tsx _qa/danger-director.ts",
+    "test:danger-loop": "node --import tsx _qa/danger-loop.ts",
+    "test:loop-escape": "node --import tsx _qa/loop-escape.ts",
     "test:character-debut": "node --import tsx _qa/character-debut.ts",
     "test:generated-characters": "node --import tsx _qa/generated-character-persistence.ts",
     "test:domain-continuity": "node --import tsx _qa/domain-thread-continuity.ts",

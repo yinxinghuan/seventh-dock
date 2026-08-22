@@ -153,52 +153,26 @@ const restoredContract = restoreDeterministicRecoveryChoice(contractedRecovery, 
 equal(restoredContract.choices[0]?.label, contractedAction, 'legacy recovery restores a now-authoritative valid action')
 ok(Boolean(resolveDeterministicChoiceTurn(restoredContract, contractedCartridge, contractedAction)), 'restored contract executes locally')
 
-const action = `前往${destination}寻找失踪的向导`
+const action = initial.choices[0].label
 const recovery = applyConsistencyRecovery(initial, cartridge, action)
 equal(recovery.scene, initial.scene + 1, 'consistency recovery records exactly one attempted turn')
 equal(recovery.location, initial.location, 'recovery cannot teleport the player')
 equal(recovery.objective, initial.objective, 'recovery cannot replace the objective with the attempted action')
-equal(recovery.choices.length, 2, 'recovery exposes only grounded exits')
+equal(recovery.choices.length, initial.choices.length - 1, 'recovery preserves only trustworthy sibling recommendations')
 ok(!recovery.choices.some((choice) => choice.label === action), 'failed generated action is quarantined instead of re-offered')
 ok(recovery.blocks.some((block) => block.id === `consistency-recovery-${recovery.scene}`), 'recovery visibly explains that no uncertain state was committed')
 const recoveryRecord = recovery.blocks.find((block) => block.id === `choices-${recovery.scene}`)
 equal(recoveryRecord?.kind, 'choices', 'recovery persists its visible choice record')
 ok(!decodeChoiceRecord(recoveryRecord?.text ?? '').includes(action), 'saved recovery record excludes the failed action')
 
-const inspectAction = recovery.choices[0].label
-const inspectSelection = resolveConsistencyRecoverySelection(recovery, cartridge, inspectAction)
-equal(inspectSelection?.mode, 'confirm', 'inspect-current-actions is a local recovery exit')
-const inspected = applyConsistencyRecoverySelection(recovery, cartridge, inspectAction, inspectSelection!)
-ok(!inspected.choices.some((choice) => choice.label === action), 'inspect exit cannot recreate the quarantined action')
-equal(new Set(inspected.choices.map((choice) => choice.label)).size, inspected.choices.length, 'inspect exit restores unique choices')
-ok(inspected.blocks.some((block) => block.data?.consistencyRecoveryExit === 'confirm'), 'inspect exit writes a deterministic local explanation')
-ok(!inspected.blocks.some((block) => block.id === `consistency-recovery-${inspected.scene}`), 'inspect exit cannot create another model recovery scene')
-const recoveryWithParty = {
-  ...recovery,
-  objective: '确认当前道路',
-  characters: [...recovery.characters, {
-    id: 'qa-companion', name: '测试同伴', role: '向导', vitality: 80, stress: 0, skills: [],
-    status: 'companion' as const, origin: 'generated' as const, updatedAtScene: recovery.scene, joinedAtScene: recovery.scene,
-  }],
-  partyMemberIds: [...recovery.partyMemberIds, 'qa-companion'],
-}
-const inspectedWithParty = applyConsistencyRecoverySelection(recoveryWithParty, cartridge, inspectAction, inspectSelection!)
-equal(inspectedWithParty.choices.length, 1, 'an unresolved objective remains the only ordinary recovery action')
-equal(inspectedWithParty.choices[0]?.label, '确认当前道路', 'recovery keeps the concrete unresolved objective')
-
-const abandonAction = recovery.choices[1].label
-const abandonSelection = resolveConsistencyRecoverySelection(recovery, cartridge, abandonAction)
-equal(abandonSelection?.mode, 'pause', 'abandon-plan is a local recovery exit')
-const abandoned = applyConsistencyRecoverySelection(recovery, cartridge, abandonAction, abandonSelection!)
-equal(new Set(abandoned.choices.map((choice) => choice.label)).size, abandoned.choices.length, 'abandon exit restores unique choices')
-ok(!abandoned.choices.some((choice) => /确认与这一步|暂缓这一步|查看.+现在能做的事|放弃原计划/.test(choice.label)), 'abandon exit leaves the synthetic recovery menu')
-
-const nested = applyConsistencyRecovery(recovery, cartridge, inspectAction)
-ok(!nested.choices.some((choice) => choice.label === action), 'nested recovery never re-offers the original failed generated action')
-equal(new Set(nested.choices.map((choice) => choice.label)).size, 2, 'nested recovery choices cannot duplicate each other')
+const secondFailedAction = recovery.choices[0].label
+const nested = applyConsistencyRecovery(recovery, cartridge, secondFailedAction)
+ok(!nested.choices.some((choice) => choice.label === action || choice.label === secondFailedAction), 'nested recovery never re-offers either failed generated action')
+equal(nested.choices.length, recovery.choices.length - 1, 'nested recovery strictly shrinks the recommendation set')
 
 const legacy = {
   ...recovery,
+  facts: {},
   objective: action,
   choices: recovery.choices.map((choice, index) => ({ ...choice, label: index === 0 ? `观察${initial.location}的新变化` : choice.label })),
   blocks: recovery.blocks.map((block) => block.id === `consistency-recovery-${recovery.scene}`

@@ -28,7 +28,7 @@
 
 `StoryShell` 只解析语言、`story_mode`、`chat_id` 和玩家身份，不接受 Cartridge 切换。无 chatId 且未显式 demo 时默认 `aigram`。页面按 `entry → conversation + composer + optional drawer` 组织，Shell 明确使用 `minmax(0,1fr)` 网格列，避免 320 px 下长行动把右侧头像推出屏幕。721 px 以上 Shell 最大 960 px；正文、快速回复和输入区按 Shell 自身 `100%` 计算 680 px 中心阅读列，不能用 `100vw` 参与内部留白。页眉中心轴最大 760 px，抽屉与 Shell 同宽。
 
-`StorySave.version = 9` 保存持久化 `facts`、可选局面锚点与 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。
+`StorySave.version = 9` 保存持久化 `facts`、可选局面锚点与 `danger` 状态。Cartridge 现在同时具备专属 `director` 与 `dangerDirector`：普通 2–3 个安全行动后按征兆→对峙→解决推进；潮位/警戒/补给跨警告阈值时严重度至少为 3，跨危险阈值时直接进入严重度 5。解决 d20 由本地稳定生成并覆盖 AI 自报值；若失败未结算合法代价，警戒按有代价成功 +6、失败 +12、关键失败 +24 兜底。危险回复及一次修复仍不合格时，`createDangerFallbackScene()` 以同一 threat/phase 提交本地结果，优先于通用一致性恢复；`repairLegacyDangerLoopChoices()` 仅迁移确实停在该旧循环的当前选择与选择记录。`test:danger-loop` 覆盖二次失败、阶段推进、结算、迁移幂等和作者选项保护。
 
 `useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v9 保存地点、时间、目标、事实、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、可选局面锚点、语言和远程 chatId。初始人物只有已在正文出现的弥拉；奥伦和赛保留稳定 ID，但由 `hiddenUntilIntroduced` 隐藏，只有可见首次登场成立后才进入权威存档。新角色采用合并，只有明确离队命令才能移除。
 
@@ -53,6 +53,8 @@ V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirecto
 文字大小由顶部 `TextSizeControl` 提供 `small / standard / large` 三档，写入 `localStorage.alteru_story_text_size`，通过 `.st-shell[data-text-size]` 的 CSS 变量只调整阅读层级。它不进入 StorySave，也不触发云端剧情存档写入。
 
 声音使用浏览器 Web Audio API 实时合成，不下载音频文件，也不请求音频生成接口。只有首次用户手势才创建 `AudioContext`；移动 WebView 的 `suspended/interrupted` 状态会恢复并用一帧静音 buffer 激活输出。`music / ambient / sfx` 三路总线限制最多 8 个活跃声部。港区配置为 54 BPM、A2 根音和五声音阶；潮位、警戒升高及补给降低会提高 8 拍循环的脉冲密度。进入、行动、检定成败、状态变化、发现、图片完成、阶段小结与错误均有独立 cue。顶部 44 px 扬声器按钮按实际 `ready` 状态显示开关；启动失败时单击直接重试，偏好写入 `localStorage.alteru_story_audio_muted`。页面后台暂停，设备不支持时静默降级；音频偏好不进入 StorySave。
+
+推荐失败隔离由 `turnConsistency.ts`、`reducer.ts` 和 `useStoryEngine.ts` 共同完成。生成层先删除没有权威进展时对同一物件换动词重试的建议，并拒绝在错误地点/人物/工作状态下复活确定性作者标签；作者回合自身的已审核后续不走语义误杀。两次生成均不可靠时，`applyConsistencyRecovery()` 写入 `consistency-quarantine-v2`，保持权威状态不变，并从提交前选择记录中只删除失败动作、目标包装和旧合成恢复项。连续失败按当前集合继续缩小；集合为空时 `normalizeSave()` 不再补通用按钮。`_qa/loop-escape.ts` 固定覆盖兄弟保留、严格收缩、零快捷栏重载和语义重复。
 
 ## 4. 扩展点
 
