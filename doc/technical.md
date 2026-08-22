@@ -52,7 +52,7 @@ V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirecto
 
 文字大小由顶部 `TextSizeControl` 提供 `small / standard / large` 三档，写入 `localStorage.alteru_story_text_size`，通过 `.st-shell[data-text-size]` 的 CSS 变量只调整阅读层级。它不进入 StorySave，也不触发云端剧情存档写入。
 
-声音使用浏览器 Web Audio API 实时合成，不下载音频文件，也不请求音频生成接口。只有首次用户手势才创建 `AudioContext`；移动 WebView 的 `suspended/interrupted` 状态会恢复并用一帧静音 buffer 激活输出。`music / ambient / sfx` 三路总线限制最多 8 个活跃声部。港区配置为 54 BPM、A2 根音和五声音阶；潮位、警戒升高及补给降低会提高 8 拍循环的脉冲密度。进入、行动、检定成败、状态变化、发现、图片完成、阶段小结与错误均有独立 cue。顶部 44 px 扬声器按钮按实际 `ready` 状态显示开关；启动失败时单击直接重试，偏好写入 `localStorage.alteru_story_audio_muted`。页面后台暂停，设备不支持时静默降级；音频偏好不进入 StorySave。
+声音在首次用户手势后启动。普通选择只播放一次轻确认；普通正文、常规数值和图片完成静音，检定、稀有物、关系、危险、抵达与章节节点才追加结果 cue。`music / ambient / sfx` 三路总线中 SFX 额外乘 `0.52`，`180 ms` 内合并突发触发，合成/录制短音效并发上限为 6/2。顶部 44 px 扬声器按钮按实际 `ready` 状态显示开关；页面后台暂停，设备不支持时静默降级，音频偏好不进入 StorySave。
 
 推荐失败隔离由 `turnConsistency.ts`、`reducer.ts` 和 `useStoryEngine.ts` 共同完成。生成层先删除没有权威进展时对同一物件换动词重试的建议，并拒绝在错误地点/人物/工作状态下复活确定性作者标签；作者回合自身的已审核后续不走语义误杀。两次生成均不可靠时，`applyConsistencyRecovery()` 写入 `consistency-quarantine-v2`，保持权威状态不变，并从提交前选择记录中只删除失败动作、目标包装和旧合成恢复项。连续失败按当前集合继续缩小；集合为空时 `normalizeSave()` 不再补通用按钮。`_qa/loop-escape.ts` 固定覆盖兄弟保留、严格收缩、零快捷栏重载和语义重复。
 
