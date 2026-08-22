@@ -87,3 +87,6 @@ V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirecto
 
 - `engine/authorityShadow.ts` 使用本游戏现有领域 reducer 审计每个可见选项，输出 `accepted / rejected / open` 与非终局空 tray 标记；它只写页面内存，最多 100 条，不影响 UI、存档或远端数据。
 - `?authority_shadow=0` 可关闭记录；`npm run test:authority-shadow` 固定选择零改写与空 tray 探测合同。
+## 2026-08-23 混合音频升级
+
+`src/story/audio/` 新增本作专属的风暴港湾主题与码头环境声，检定、危险、数值和操作反馈继续使用 Web Audio。未知地点回落到默认环境声；长音频只在用户手势后启动并自然结束，失败不阻塞回合。
