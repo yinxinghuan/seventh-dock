@@ -4,6 +4,7 @@ const coverImage = new URL('../img/worlds/seventh-dock.webp', import.meta.url).h
 const entryImage = new URL('../img/worlds/seventh-dock-entry.webp', import.meta.url).href
 const audioThemeUrl = new URL('../audio/assets/theme.mp3', import.meta.url).href
 const audioAmbienceUrl = new URL('../audio/assets/ambience.mp3', import.meta.url).href
+const audioFeatureUrl = new URL('../audio/assets/feature.mp3', import.meta.url).href
 
 function storyDirector(locale: 'zh' | 'en'): StoryDirector {
   const zh = locale === 'zh'
@@ -90,7 +91,7 @@ const shared = {
     perspective: { ordinary: 'balanced', importantDialogue: 'first-person', newLocation: 'observer' },
   } satisfies StoryImageDirector,
   audioTheme: {
-    recorded: { music: { src: audioThemeUrl, gain: .18 }, ambience: { src: audioAmbienceUrl, gain: .3 } },
+    recorded: { music: { src: audioThemeUrl, gain: .18 }, ambience: { src: audioAmbienceUrl, gain: .3 }, cues: { discovery: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 }, relationship: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 }, summary: { src: audioFeatureUrl, gain: .17, role: 'feature' as const, cooldownMs: 180_000 } } },
     material: 'harbor' as const, bpm: 54, rootHz: 110, scale: [0, 3, 5, 7, 10],
     levels: { music: .12, ambient: .1, sfx: .18, master: .24 },
     tension: [
