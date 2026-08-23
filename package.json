@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
+  "preview": "vite preview",
+  "test:one-shot-audio": "node --import tsx _qa/one-shot-audio.ts",
     "test:protocol": "node --import tsx _qa/protocol.ts",
     "test:payment": "node --import tsx _qa/payment-consistency.ts",
     "test:turn": "node --import tsx _qa/turn-consistency.ts",
