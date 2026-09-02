@@ -34,7 +34,8 @@
     "test:resume": "node --import tsx _qa/reading-anchor.ts",
     "test:domain": "node --import tsx _qa/domain-live.ts",
     "test:world-director": "node --import tsx _qa/world-director.ts",
-    "test:authority-shadow": "node --import tsx _qa/authority-shadow.ts"
+    "test:authority-shadow": "node --import tsx _qa/authority-shadow.ts",
+    "test:server-turn": "node --import tsx _qa/server-turn-pipeline.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

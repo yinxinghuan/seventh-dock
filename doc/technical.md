@@ -15,6 +15,7 @@
 - `src/story/cartridges/seventhDock.ts`：Seventh Dock 的 zh/en 内容、数值、角色、地图、物品和演示回合。
 - `src/story/cartridges/index.ts`：固定 `DEFAULT_CARTRIDGE_ID='seventh-dock'`；不提供世界选择器。
 - `src/story/engine/`：协议解析、结构化命令和 reducer。
+- `src/story/engine/executeTurn.ts`：与 React/DOM/媒体/存储解耦的服务端回合权威边界，复用本作领域规则、作者回合、危险调度、proposal 校验和 reducer。
 - `src/story/engine/dangerDirector.ts`：2–3 安全行动节奏、港区威胁阶段、稳定 d20 与警戒兜底代价。
 - `src/story/adapters/`：Aigram AI、有限本地演示与实验远程连续世界适配器。
 - `src/story/useStoryEngine.ts`：状态镜像、Aigram 存档、Adapter 调用和串行图片队列。
@@ -33,6 +34,8 @@
 `useStoryEngine()` 调用 `useGameSave('seventh-dock')`。本地命名空间与游戏 UUID 双重隔离；`archiveRef` 是写后立即更新的本地镜像，避免 `savedData` 只在挂载时读取造成后续写入覆盖。StorySave v9 保存地点、时间、目标、事实、数值、剧情块、地图、物品、规范化角色、`partyMemberIds`、关系、危险导演状态、可选局面锚点、语言和远程 chatId。初始人物只有已在正文出现的弥拉；奥伦和赛保留稳定 ID，但由 `hiddenUntilIntroduced` 隐藏，只有可见首次登场成立后才进入权威存档。新角色采用合并，只有明确离队命令才能移除。
 
 `domainRules.ts` 将查痕迹、追问弥拉、先看路线做成三项互斥本地首轮事务；命中时完全跳过模型调用，并分别提交反向潮标、弥拉旧身份或高处搬运通道及其代价。规则回放同时验证恶意模型命令不能提前生成奥伦。
+
+`executeStoryTurn()` 抽出可由 Story Session Worker 调用的纯回合管线；`_qa/server-turn-pipeline.ts` 固定验证本地首轮事务不调用模型、事实/数值/scene 原子提交、输入快照不被修改，以及模型 proposal 必须经过现有一致性校验才能提交。当前只完成源码 canary，正式写入仍需后端可验证的 AlterU 玩家身份、version/cursor/action-id 会话封装与 Durable Object 适配。
 
 若独立命名空间为空，引擎会读取旧 `stateful-story-template-save` 中的第七码头世界并迁入 `seventh-dock-save`；平台内云存档继续由永久 UUID 隔离，已有旅程不会因命名空间修正丢失。
 
