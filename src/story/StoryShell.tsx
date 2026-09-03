@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import alteruMark from './img/alteru.svg'
 import { DEFAULT_CARTRIDGE_ID, listCartridges, resolveCartridge } from './cartridges'
 import { Icon, type IconName } from './Icons'
@@ -9,7 +9,17 @@ import { usePlayerProfile, type PlayerProfile } from './usePlayerProfile'
 import { useStoryAudio } from './audio/useStoryAudio'
 import { latestReadingAnchorId } from './engine/readingAnchor'
 import { decodeChoiceRecord, resolveNumberedChoiceInput } from './engine/choiceInput'
+import type { StorySessionDirectory } from './session/storySessionClient'
 
+export type StoryEngineView = ReturnType<typeof useStoryEngine> & {
+  actionBlocked?: boolean
+  fixedSource?: boolean
+  fixedLocale?: boolean
+  preservesSessionOnRestart?: boolean
+  listSessions?: () => Promise<StorySessionDirectory>
+  switchSession?: (sessionId: string) => Promise<void>
+  sessionId?: string
+}
 function useInitialCartridge() {
   return new URLSearchParams(window.location.search).get('cartridge')
 }
@@ -334,20 +344,47 @@ function ItemDetail({ item, cartridge }: { item: InventoryItem; cartridge: Story
 }
 
 function SystemDetail({ cartridge, engine, restart }: {
-  cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; restart: () => void
+  cartridge: StoryCartridge; engine: StoryEngineView; restart: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
+  const [sessions, setSessions] = useState<StorySessionDirectory['sessions']>([])
+  const [directoryState, setDirectoryState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [switching, setSwitching] = useState('')
+  const loadSessions = useCallback(async () => {
+    if (!engine.listSessions) return
+    setDirectoryState('loading')
+    try { setSessions((await engine.listSessions()).sessions); setDirectoryState('ready') }
+    catch { setDirectoryState('error') }
+  }, [engine.listSessions])
+  useEffect(() => { void loadSessions() }, [loadSessions, engine.sessionId])
+  const switchTo = async (sessionId: string) => {
+    if (!engine.switchSession || sessionId === engine.sessionId) return
+    setSwitching(sessionId)
+    try { await engine.switchSession(sessionId) } catch { setDirectoryState('error') } finally { setSwitching('') }
+  }
+  const savedSessions = sessions.filter(entry => entry.locale === cartridge.locale)
   return <div className="st-world-detail">
     <DetailSection label={t(cartridge.locale, 'system')}><p>{t(cartridge.locale, 'segmentSaved', { n: engine.save.scene + 1 })}</p></DetailSection>
     <DetailMetrics rows={[{ label: t(cartridge.locale, 'here'), value: engine.save.sceneLocation ?? engine.save.location }, { label: t(cartridge.locale, 'system'), value: engine.save.time }]} />
+    {engine.listSessions && engine.switchSession && <section className="st-session-history">
+      <small>{t(cartridge.locale, 'sessionHistoryTitle')}</small><p>{t(cartridge.locale, 'sessionHistoryDescription')}</p>
+      {directoryState === 'loading' && <p role="status">{t(cartridge.locale, 'sessionHistoryLoading')}</p>}
+      {directoryState === 'error' && <button className="st-session-history__retry" onClick={() => void loadSessions()}>{t(cartridge.locale, 'sessionHistoryError')}</button>}
+      {directoryState === 'ready' && savedSessions.length === 0 && <p>{t(cartridge.locale, 'sessionHistoryEmpty')}</p>}
+      {savedSessions.length > 0 && <div className="st-session-history__list">{savedSessions.map(entry => {
+        const current = entry.session_id === engine.sessionId
+        const updated = entry.updated_at > 0 ? new Intl.DateTimeFormat(cartridge.locale === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(entry.updated_at) : t(cartridge.locale, 'sessionHistoryLegacy')
+        return <button key={entry.session_id} onClick={() => void switchTo(entry.session_id)} disabled={current || engine.busy || Boolean(switching)} aria-current={current ? 'true' : undefined}><span><strong>{t(cartridge.locale, 'sessionHistoryScene', { n: entry.scene + 1 })}</strong><small>{updated}</small></span><b>{current ? t(cartridge.locale, 'sessionHistoryCurrent') : t(cartridge.locale, 'sessionHistorySwitch')}</b></button>
+      })}</div>}
+    </section>}
     <section className="st-world-restart">
       <small>{t(cartridge.locale, 'startOver')}</small>
-      <p>{t(cartridge.locale, 'startOverDescription')}</p>
+      <p>{t(cartridge.locale, engine.preservesSessionOnRestart ? 'sessionRestartDescription' : 'startOverDescription')}</p>
       {engine.busy && <p className="st-world-restart__busy" role="status">{t(cartridge.locale, 'startOverBusy')}</p>}
       {!confirming
         ? <button className="st-world-restart__open" onClick={() => setConfirming(true)} disabled={engine.busy}>{t(cartridge.locale, 'startOver')}</button>
         : <div className="st-world-restart__confirm" role="alert">
-          <p>{t(cartridge.locale, 'startOverWarning')}</p>
+          <p>{t(cartridge.locale, engine.preservesSessionOnRestart ? 'sessionRestartWarning' : 'startOverWarning')}</p>
           <div><button onClick={() => setConfirming(false)}>{t(cartridge.locale, 'startOverCancel')}</button><button className="is-danger" onClick={restart}>{t(cartridge.locale, 'startOverConfirm')}</button></div>
         </div>}
     </section>
@@ -355,7 +392,7 @@ function SystemDetail({ cartridge, engine, restart }: {
 }
 
 function WorldDrawer({ active, setActive, detail, setDetail, cartridge, engine, close, player }: {
-  active: DrawerId; setActive: (id: DrawerId) => void; detail: WorldDetail | null; setDetail: (detail: WorldDetail | null) => void; cartridge: StoryCartridge; engine: ReturnType<typeof useStoryEngine>; close: () => void; player: PlayerProfile
+  active: DrawerId; setActive: (id: DrawerId) => void; detail: WorldDetail | null; setDetail: (detail: WorldDetail | null) => void; cartridge: StoryCartridge; engine: StoryEngineView; close: () => void; player: PlayerProfile
 }) {
   const save = engine.save
   const character = detail?.type === 'character' ? save.characters.find((entry) => entry.id === detail.id) : undefined
@@ -393,9 +430,7 @@ function WorldDrawer({ active, setActive, detail, setDetail, cartridge, engine, 
   </section></div>
 }
 
-function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge: StoryCartridge; mode: StoryMode; chatId?: string; onSelect: (id: string) => void; onLocaleChange: (locale: Locale) => void }) {
-  const player = usePlayerProfile()
-  const engine = useStoryEngine(cartridge, mode, chatId, { ready: player.loaded, refUrl: player.imageRefUrl })
+export function StoryGameView({ cartridge, engine, player, onSelect, onLocaleChange }: { cartridge: StoryCartridge; engine: StoryEngineView; player: PlayerProfile; onSelect: (id: string) => void; onLocaleChange: (locale: Locale) => void }) {
   const audio = useStoryAudio(cartridge, engine.save)
   const [worldOpen, setWorldOpen] = useState(false)
   const [worldTab, setWorldTab] = useState<DrawerId>('party')
@@ -556,6 +591,12 @@ function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge
     <Composer cartridge={cartridge} engine={engine} onAct={act} />
     {worldOpen && <WorldDrawer active={worldTab} setActive={setWorldTab} detail={worldDetail} setDetail={setWorldDetail} cartridge={cartridge} engine={engine} close={() => setWorldOpen(false)} player={player} />}
   </main>
+}
+
+function Game({ cartridge, mode, chatId, onSelect, onLocaleChange }: { cartridge: StoryCartridge; mode: StoryMode; chatId?: string; onSelect: (id: string) => void; onLocaleChange: (locale: Locale) => void }) {
+  const player = usePlayerProfile()
+  const engine = useStoryEngine(cartridge, mode, chatId, { ready: player.loaded, refUrl: player.imageRefUrl })
+  return <StoryGameView cartridge={cartridge} engine={engine} player={player} onSelect={onSelect} onLocaleChange={onLocaleChange} />
 }
 
 export default function StoryShell() {

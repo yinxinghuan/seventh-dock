@@ -41,7 +41,9 @@
 
 同一 lab 还提供 owner-scoped 最小旅程目录和显式存量修复。目录最多 50 条，只含 session/ruleset/version/cursor/locale/scene/创建与更新时间，不含 snapshot、正文、选择、事件、owner 或媒体 URL；restart 创建新 session，switch 先读取权威 head，pending enrollment/action 时拒绝切换。修复只接受固定 `seventh-dock-save-v10-repair-2026-09-04` 与期望 session/ruleset version，客户端目标 snapshot 或额外字段会被拒绝；服务端对已存 snapshot 运行本作 `normalizeSave()`，成功只增加 session version，不增加剧情 cursor/event。migration audit 只保存请求与修复前后哈希；双连接竞争只提交一次，幂等 replay 跨重启成立，失败事务可安全重试。
 
-`_qa/story-session-client.ts`、`story-session-persistence.ts`、`story-session-directory.ts` 与 `story-session-migration.ts` 使用固定生成器故障、两进程屏障、响应丢失、事务注入和合成 owner 覆盖上述合同。正式 `StoryShell/useStoryEngine`、Aigram 云存档、Worker、生产默认和部署均未改变；QA token 不是正式身份，目录尚未接 React 历史旅程界面，真实数据库迁移仍需要备份、批次、监控和回滚演练。
+`_qa/story-session-client.ts`、`story-session-persistence.ts`、`story-session-directory.ts` 与 `story-session-migration.ts` 使用固定生成器故障、两进程屏障、响应丢失、事务注入和合成 owner 覆盖上述合同。正式 `StoryShell/useStoryEngine`、Aigram 云存档、Worker、生产默认和部署均未改变；QA token 不是正式身份，真实数据库迁移仍需要备份、批次、监控和回滚演练。
+
+`src/story/session/useStorySessionEngine.ts` 是唯一使用 journal 的隔离 React writer；`_qa/story-session.html` 不在生产 `index.html` 导入图中。它以 Web Lock 协调同 scope 页面，未知响应保留 pending 并禁用新行动，刷新后先 GET 对账再恢复。`StoryGameView` 新增可选的 owner 旅程目录界面，正式 `useStoryEngine` 不提供该能力，因此生产画面和写入路径不变。`_qa/story-session-history-browser.mjs` 以固定模型夹具覆盖：未知响应→API 离线→刷新→恢复只产生一次提交、重开保留旧旅程、显式切回、合成账号/语言隔离，以及 390×844 中文和 320×568 英文触控/无溢出证据。这仍是 loopback SQLite 和合成身份；正式 Worker、生产迁移批处理、备份回滚和正式入口 cohort 均未完成。
 
 若独立命名空间为空，引擎会读取旧 `stateful-story-template-save` 中的第七码头世界并迁入 `seventh-dock-save`；平台内云存档继续由永久 UUID 隔离，已有旅程不会因命名空间修正丢失。
 
