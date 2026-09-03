@@ -37,6 +37,12 @@
 
 `executeStoryTurn()` 抽出可由 Story Session Worker 调用的纯回合管线；`_qa/server-turn-pipeline.ts` 固定验证本地首轮事务不调用模型、事实/数值/scene 原子提交、输入快照不被修改，以及模型 proposal 必须经过现有一致性校验才能提交。当前只完成源码 canary，正式写入仍需后端可验证的 AlterU 玩家身份、version/cursor/action-id 会话封装与 Durable Object 适配。
 
+2026-09-04 本机 Story Session 服务 canary 新增 `server/storySessionLab.ts`、`src/story/session/storySessionClient.ts` 与 `storySessionJournal.ts`。Lab 只绑定 loopback，使用合成 bearer→owner 映射和 WAL SQLite；enrollment 与 action id 均绑定首个请求指纹，短事务原子写入 snapshot/version/cursor/event/cache/audit。客户端在首个注册或行动请求之前写 checkpoint；未知结果先按 previous cursor/action id 读取，确认未提交才允许重放同一 envelope。两个独立 Node 进程共享数据库时，同 owner enrollment 只创建一个 session；同 version 竞争只有一个胜者，同 action 只提交一次。提交前故障回滚全部状态，提交后断响应并杀进程后仍可从磁盘恢复 head、enrollment 与 action cache。
+
+同一 lab 还提供 owner-scoped 最小旅程目录和显式存量修复。目录最多 50 条，只含 session/ruleset/version/cursor/locale/scene/创建与更新时间，不含 snapshot、正文、选择、事件、owner 或媒体 URL；restart 创建新 session，switch 先读取权威 head，pending enrollment/action 时拒绝切换。修复只接受固定 `seventh-dock-save-v10-repair-2026-09-04` 与期望 session/ruleset version，客户端目标 snapshot 或额外字段会被拒绝；服务端对已存 snapshot 运行本作 `normalizeSave()`，成功只增加 session version，不增加剧情 cursor/event。migration audit 只保存请求与修复前后哈希；双连接竞争只提交一次，幂等 replay 跨重启成立，失败事务可安全重试。
+
+`_qa/story-session-client.ts`、`story-session-persistence.ts`、`story-session-directory.ts` 与 `story-session-migration.ts` 使用固定生成器故障、两进程屏障、响应丢失、事务注入和合成 owner 覆盖上述合同。正式 `StoryShell/useStoryEngine`、Aigram 云存档、Worker、生产默认和部署均未改变；QA token 不是正式身份，目录尚未接 React 历史旅程界面，真实数据库迁移仍需要备份、批次、监控和回滚演练。
+
 若独立命名空间为空，引擎会读取旧 `stateful-story-template-save` 中的第七码头世界并迁入 `seventh-dock-save`；平台内云存档继续由永久 UUID 隔离，已有旅程不会因命名空间修正丢失。
 
 灾难、昏迷和任务失败目前是可继续的叙事后果，不会由前端自动删档；`session_end` 只是可恢复的章节节点。玩家可在“世界 → 日志 → 系统”两次确认从头开始。`restartWorld()` 只以本作开场状态覆盖 Seventh Dock 的本地/Aigram 存档，移除实验 remote chat 绑定，并使重置前尚未返回的场景图结果失效；AI 回合进行中入口禁用。

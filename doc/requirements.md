@@ -60,6 +60,8 @@
 - 本游戏使用独立 UUID 和独立本地命名空间，只保存 Seventh Dock 世界，不与模板或其他游戏共享存档。
 - 保存地点、时间、目标、三项数值、剧情块、选择、地图、物品、已认识角色、当前小队、关系、最后语言和可选远程 chatId。新成员只能与现有小队合并；没有明确离队协议事件时，角色跨场景和重载保持在队。
 - 正式入口默认使用 Aigram `game-chat`，每轮携带权威状态与最近 20 个非图片剧情块；带有效 `chat_id` 时才使用实验性服务端连续世界。云端优先恢复，localStorage 兜底；只在 AI 完整响应或远程 `message_saved` 后提交世界变化。
+- Story Session 本机 canary 不改变正式默认：旧存档以稳定 enrollment id 无损注册，客户端必须在首次网络请求前保存原始注册包，并在每次行动前保存稳定 action id、期望 version/ruleset、previous cursor 与结构化输入。响应丢失时先按 cursor/action id 对账，再决定是否重放完全相同的请求；存储失败、模型失败、陈旧版本或跨 owner 请求均不得产生部分写入。当前只使用 loopback SQLite、合成 QA 身份和固定故障，不接正式玩家或生产写入。
+- 普通 `GET` 只能读取，不得顺便修复持久化存档。修复只接受固定白名单 migration id 与期望 session/ruleset version，服务端从已存 snapshot 推导目标结果，客户端不得上传目标 snapshot；成功仅令 session version `+1`，不伪造剧情 cursor/event。服务端保留同 owner 的旧旅程并提供最多 50 条最小目录元数据；重新开始创建新 session，pending action 或 enrollment 未恢复时禁止切换。
 - `story_mode=demo` 只用于三段确定性 QA 演示；内容耗尽后必须明确报错，禁止无限返回通用段落。AI/远程失败不提交行动或数值，并提供 44 px“重试这一步”。
 - 章节摘要用于压缩已发生事实，但不会覆写人物身份、承诺、死亡、所有权或未解决目标。
 
