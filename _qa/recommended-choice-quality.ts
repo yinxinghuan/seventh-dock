@@ -32,6 +32,8 @@ for (const label of [
 assert.equal(repeatsCurrentAction('再次检查仓门', '检查仓门', 'zh'), true)
 assert.equal(repeatsCurrentAction('继续检查仓门', '检查仓门', 'zh'), true)
 assert.equal(repeatsCurrentAction('Retry checking the warehouse door', 'Check the warehouse door', 'en'), true)
+assert.equal(repeatsCurrentAction('Check the warehouse door again', 'Check the warehouse door', 'en'), true)
+assert.equal(repeatsCurrentAction('Check the warehouse door once more', 'Check the warehouse door', 'en'), true)
 assert.equal(repeatsCurrentAction('Push cargo behind the warehouse door', 'Check the warehouse door', 'en'), false)
 
 console.log(JSON.stringify({ ok: true, checks: ['generic-placeholder-filter', 'concrete-action-preserved', 'immediate-repeat-filter', 'zh-en'] }))
