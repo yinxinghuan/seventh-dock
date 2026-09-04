@@ -111,3 +111,9 @@ V10 在上述导演上增加 Cartridge 级 `perspective` 与 `presetEventDirecto
 ## 2026-08-23 一次性环境与事件音
 
 码头环境声每次地点访问只播一遍，真实离开并重新进入才允许再播。短事件音按已提交事件只播一次，静音、页面恢复、重渲染和读档不补播。`_qa/one-shot-audio.ts` 固定验证该合同。
+
+## Story Session 生产迁移（2026-09-04）
+
+默认生产入口已从浏览器单写者切换到同 UUID Worker 的 Story Session 权威运行时。剧情快照、版本、事件、enrollment/action/ending 幂等结果与媒体 URL overlay 保存在 Durable Object SQLite；客户端在提交前把待处理 envelope 写入本地 journal，未知网络结果先读取权威事件再恢复。`?story_runtime=legacy` 与历史 `chat_id` 入口保留旧引擎回滚。
+
+当前缺少平台可验证的用户身份，因此使用 256-bit 随机匿名能力令牌做 owner 隔离。令牌作为旧 `StoryArchive` 的附加字段通过现有 AIGram 游戏存档同步；它能实现同令牌跨设备恢复，但不能证明真实 AlterU 用户，也不能处理令牌被复制后的冒用。旧 `worlds` 存档保留且不被 enrollment 删除。媒体仍由现有平台服务生成，稳定 request id 防止未知结果重复计费，成功 URL 回写 Story Session 且不增加剧情版本。
